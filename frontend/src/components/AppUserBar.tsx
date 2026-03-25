@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchMe, type MeDto } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 
-export default function AppUserBar() {
+export default function AppUserBar({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
   const { token, logout } = useAuth();
   const [me, setMe] = useState<MeDto | null>(null);
 
@@ -26,6 +26,7 @@ export default function AppUserBar() {
   if (!token) return null;
 
   const plan = me?.plan === 'pro' ? 'pro' : 'free';
+  const isAdmin = me?.role === 'admin' || me?.role === 'super_admin' || me?.role === 'support';
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-3 mb-6 text-sm">
@@ -50,6 +51,16 @@ export default function AppUserBar() {
         <span className="text-xs text-gray-500 max-w-md text-right hidden md:inline">
           Passez Pro pour diagnostic complet, comparaison aux offres et réécritures.
         </span>
+      ) : null}
+      {isAdmin ? (
+        <button
+          type="button"
+          onClick={onOpenAdmin}
+          className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+          title="Ouvrir le panneau admin"
+        >
+          Admin
+        </button>
       ) : null}
       <button
         type="button"

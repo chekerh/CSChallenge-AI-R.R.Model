@@ -29,15 +29,28 @@ export default function AuthForm({ onAuth }: { onAuth: (token: string) => void }
         body: JSON.stringify(body)
       });
       
-      const data = await res.json();
+      const data = (await res.json().catch(() => ({}))) as unknown;
       
       if (!res.ok) {
-        setStatus(data.error || 'Authentication failed');
+        const o = (data ?? {}) as Record<string, unknown>;
+        const msg =
+          typeof o.error === 'string'
+            ? o.error
+            : typeof o.message === 'string'
+              ? o.message
+              : 'Authentication failed';
+        setStatus(msg);
         return;
       }
 
-      localStorage.setItem('token', data.token);
-      onAuth(data.token);
+      const o = (data ?? {}) as Record<string, unknown>;
+      const token = typeof o.token === 'string' ? o.token : '';
+      if (!token) {
+        setStatus('Invalid server response');
+        return;
+      }
+      localStorage.setItem('token', token);
+      onAuth(token);
     } catch (err) {
       setStatus('Network error occurred');
       console.error(err);

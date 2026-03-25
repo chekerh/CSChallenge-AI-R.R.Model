@@ -33,6 +33,7 @@ export interface MeDto {
   email?: string;
   name?: string;
   plan?: string;
+  role?: string;
   created_at?: string;
 }
 
@@ -112,6 +113,7 @@ export async function fetchMe(token: string): Promise<MeDto | ApiError> {
       email: typeof o.email === 'string' ? o.email : undefined,
       name: typeof o.name === 'string' ? o.name : undefined,
       plan: typeof o.plan === 'string' ? o.plan : undefined,
+      role: typeof o.role === 'string' ? o.role : undefined,
       created_at:
         o.created_at != null ? String(o.created_at) : undefined,
     };

@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import User from './models/User';
 import { requireAuth } from './middleware/authMiddleware';
 import { getJwtSecret } from './config/env';
+import { trackEvent } from './analytics/events';
 
 const router = express.Router();
 
@@ -39,6 +40,7 @@ router.post('/signup', express.json(), async (req, res) => {
       password_hash: hash,
       provider: 'local',
     });
+    trackEvent({ userId: user._id.toString(), event: 'user.signup' });
     const token = jwt.sign(
       { id: user._id.toString(), email: user.email },
       getJwtSecret(),
@@ -74,6 +76,7 @@ router.post('/login', express.json(), async (req, res) => {
       getJwtSecret(),
       { expiresIn: '7d' }
     );
+    trackEvent({ userId: String((user as { _id: unknown })._id), event: 'user.login' });
     res.json({ token });
   } catch (err) {
     console.error(err);
@@ -88,7 +91,7 @@ router.get('/me', requireAuth, async (req, res) => {
     return;
   }
   const user = await User.findById(userId)
-    .select('email name created_at plan')
+    .select('email name created_at plan role')
     .lean();
   if (!user) {
     res.status(404).json({ error: 'user not found' });

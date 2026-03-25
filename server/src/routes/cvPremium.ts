@@ -11,10 +11,12 @@ import {
 } from '../cv/engine';
 import { parseBody, cvDiagnosisBodySchema, cvRewriteBodySchema, cvJobMatchBodySchema, cvBuilderDraftBodySchema, cvBuilderPublishBodySchema } from '../cv/validation';
 import { loadUserPlan } from '../cv/userPlan';
+import { consumeQuota, hasFeature } from '../billing/entitlements';
 import CvAnalysis from '../models/CvAnalysis';
 import CvBuilderDraft from '../models/CvBuilderDraft';
 import Resume from '../models/Resume';
 import ResumeVersion from '../models/ResumeVersion';
+import { trackEvent } from '../analytics/events';
 
 const router = express.Router();
 
@@ -38,6 +40,15 @@ router.post('/diagnosis', requireAuth, async (req, res) => {
       return;
     }
     const userId = req.user!.id;
+    const q = await consumeQuota(userId, 'cv_diagnosis_runs_per_month');
+    if (!q.allowed) {
+      res.status(429).json({
+        error: 'Quota mensuel atteint pour le diagnostic CV.',
+        code: 'QUOTA_EXCEEDED',
+        limit_key: 'cv_diagnosis_runs_per_month',
+      });
+      return;
+    }
     const plan = await loadUserPlan(userId);
     const full = await runDeepDiagnosis(body.text, body.outputLanguage, body.targetRole);
 
@@ -60,6 +71,11 @@ router.post('/diagnosis', requireAuth, async (req, res) => {
       upgrade_message: truncated ? UPGRADE_FR : undefined,
       analysis_id: doc._id.toString(),
     });
+    trackEvent({
+      userId,
+      event: 'cv.diagnosis',
+      props: { tier: plan, truncated, input_chars: body.text.length },
+    });
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('Validation:')) {
       validationErr(e, res);
@@ -81,11 +97,21 @@ router.post('/diagnosis', requireAuth, async (req, res) => {
 
 router.post('/rewrite-section', requireAuth, async (req, res) => {
   try {
-    const plan = await loadUserPlan(req.user!.id);
-    if (plan !== 'pro') {
+    const userId = req.user!.id;
+    const canRewrite = await hasFeature(userId, 'cv.rewrite_section');
+    if (!canRewrite) {
       res.status(403).json({
         error: 'Pro requis pour la réécriture IA triple ton.',
         code: 'UPGRADE_REQUIRED',
+      });
+      return;
+    }
+    const q = await consumeQuota(userId, 'cv_rewrite_sections_per_month');
+    if (!q.allowed) {
+      res.status(429).json({
+        error: 'Quota mensuel atteint pour la réécriture de section.',
+        code: 'QUOTA_EXCEEDED',
+        limit_key: 'cv_rewrite_sections_per_month',
       });
       return;
     }
@@ -97,6 +123,11 @@ router.post('/rewrite-section', requireAuth, async (req, res) => {
       targetRole: body.targetRole,
     });
     res.json(result);
+    trackEvent({
+      userId,
+      event: 'cv.rewrite_section',
+      props: { section_type: body.sectionType, output_language: body.outputLanguage },
+    });
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('Validation:')) {
       validationErr(e, res);
@@ -118,11 +149,21 @@ router.post('/rewrite-section', requireAuth, async (req, res) => {
 
 router.post('/job-match', requireAuth, async (req, res) => {
   try {
-    const plan = await loadUserPlan(req.user!.id);
-    if (plan !== 'pro') {
+    const userId = req.user!.id;
+    const canMatch = await hasFeature(userId, 'cv.job_match');
+    if (!canMatch) {
       res.status(403).json({
         error: 'Pro requis pour la comparaison CV ↔ offre.',
         code: 'UPGRADE_REQUIRED',
+      });
+      return;
+    }
+    const q = await consumeQuota(userId, 'cv_job_matches_per_month');
+    if (!q.allowed) {
+      res.status(429).json({
+        error: 'Quota mensuel atteint pour la comparaison CV ↔ offre.',
+        code: 'QUOTA_EXCEEDED',
+        limit_key: 'cv_job_matches_per_month',
       });
       return;
     }
@@ -134,6 +175,11 @@ router.post('/job-match', requireAuth, async (req, res) => {
       body.targetRole
     );
     res.json(result);
+    trackEvent({
+      userId,
+      event: 'cv.job_match',
+      props: { output_language: body.outputLanguage, target_role: body.targetRole },
+    });
   } catch (e) {
     if (e instanceof Error && e.message.startsWith('Validation:')) {
       validationErr(e, res);

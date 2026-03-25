@@ -6,9 +6,11 @@ import CvStudio from './components/CvStudio';
 import CvBuilder from './components/CvBuilder';
 import AppUserBar from './components/AppUserBar';
 import ClassicResumePicker from './components/ClassicResumePicker';
+import AdminDashboard from './components/AdminDashboard';
+import PricingPanel from './components/PricingPanel';
 import { useAuth } from './contexts/AuthContext';
 
-type AppMode = 'classic' | 'cvpro' | 'cvbuilder';
+type AppMode = 'classic' | 'cvpro' | 'cvbuilder' | 'admin' | 'pricing';
 
 function App() {
   const [resumeId, setResumeId] = useState<string | null>(null);
@@ -56,13 +58,17 @@ function App() {
         
         {isAuthenticated && (
           <>
-            <AppUserBar />
+            <AppUserBar onOpenAdmin={() => setAppMode('admin')} />
             {/* Header */}
             <div className="text-center mb-8 animate-slide-up">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl md:text-6xl">
             <span className="block">UtopiaHire</span>
             <span className="block text-indigo-600 text-2xl sm:text-3xl mt-2">
-              {appMode === 'cvpro'
+              {appMode === 'admin'
+                ? 'Panneau admin'
+                : appMode === 'pricing'
+                  ? 'Tarifs et plans'
+                : appMode === 'cvpro'
                 ? 'CV Pro — Tunisie & international'
                 : appMode === 'cvbuilder'
                   ? 'Créateur de CV intégré'
@@ -70,13 +76,26 @@ function App() {
             </span>
           </h1>
           <p className="mt-3 max-w-xl mx-auto text-base text-gray-500 sm:text-lg md:mt-5 md:text-xl">
-            {appMode === 'cvpro'
+            {appMode === 'admin'
+              ? 'Gérez les utilisateurs, le contenu, les paramètres et les opérations.'
+              : appMode === 'pricing'
+                ? 'Consultez les plans Free/Pro et la proposition de valeur.'
+              : appMode === 'cvpro'
               ? 'Diagnostic profond, scores explicables, adaptation métier et comparaison aux offres — sans inventer vos expériences.'
               : appMode === 'cvbuilder'
                 ? 'Construisez votre CV par blocs, sauvegardez un brouillon, publiez-le comme CV classique ou envoyez le texte vers CV Pro pour analyse.'
                 : 'Importez votre CV, consultez les versions, téléchargez le texte et lancez l’analyse IA (nécessite une clé OpenAI sur le serveur).'}
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
+            {appMode === 'admin' ? (
+              <button
+                type="button"
+                onClick={() => setAppMode('cvpro')}
+                className="px-4 py-2 rounded-full text-sm font-medium transition-colors bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+              >
+                Retour à l’app
+              </button>
+            ) : (
             <button
               type="button"
               onClick={() => setAppMode('cvpro')}
@@ -88,6 +107,21 @@ function App() {
             >
               Mode CV Pro (Tunisie)
             </button>
+            )}
+            {appMode !== 'admin' ? (
+            <button
+              type="button"
+              onClick={() => setAppMode('pricing')}
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                appMode === 'pricing'
+                  ? 'bg-amber-600 text-white shadow'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Tarifs
+            </button>
+            ) : null}
+            {appMode !== 'admin' ? (
             <button
               type="button"
               onClick={() => setAppMode('cvbuilder')}
@@ -99,6 +133,8 @@ function App() {
             >
               Créer mon CV
             </button>
+            ) : null}
+            {appMode !== 'admin' ? (
             <button
               type="button"
               onClick={() => setAppMode('classic')}
@@ -110,10 +146,15 @@ function App() {
             >
               Mode classique (upload rapide)
             </button>
+            ) : null}
           </div>
         </div>
 
-        {appMode === 'cvpro' ? (
+        {appMode === 'admin' ? (
+          <AdminDashboard onClose={() => setAppMode('cvpro')} />
+        ) : appMode === 'pricing' ? (
+          <PricingPanel />
+        ) : appMode === 'cvpro' ? (
           <CvStudio
             studioSeed={studioSeed}
             onStudioSeedConsumed={() => setStudioSeed(null)}

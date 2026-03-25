@@ -9,8 +9,12 @@ import authRouter from './auth';
 import resumeRouter from './routes/resume';
 import kaggleRouter from './routes/kaggle';
 import cvPremiumRouter from './routes/cvPremium';
+import adminRouter from './routes/admin';
+import publicRouter from './routes/public';
 import { connect } from './db';
 import { getCorsOrigins, isProduction } from './config/env';
+import { bootstrapSuperAdmin } from './config/bootstrapAdmin';
+import { bootstrapDefaultPlans } from './config/bootstrapPlans';
 
 const app = express();
 if (isProduction()) {
@@ -56,6 +60,8 @@ app.use('/auth', authLimiter, authRouter);
 app.use('/resumes', apiLimiter, resumeRouter);
 app.use('/kaggle', apiLimiter, kaggleRouter);
 app.use('/cv', apiLimiter, cvPremiumRouter);
+app.use('/admin', apiLimiter, adminRouter);
+app.use('/public', apiLimiter, publicRouter);
 
 app.get('/health', async (_req, res) => {
   try {
@@ -73,6 +79,8 @@ const host = process.env.HOST || '0.0.0.0';
 
 async function startServer(): Promise<void> {
   await connect();
+  await bootstrapDefaultPlans();
+  await bootstrapSuperAdmin();
   app.listen(port, host, () => {
     console.log(`Server running on http://${host}:${port}`);
     console.log(`Health: http://localhost:${port}/health`);

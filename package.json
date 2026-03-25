@@ -11,6 +11,7 @@
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:server\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:server": "cd server && npm run dev",
+    "dev:e2e": "concurrently \"cross-env PORT=4020 npm --prefix server run dev\" \"cross-env VITE_API_URL=http://127.0.0.1:4020 npm --prefix frontend run dev -- --port 5180 --strictPort\"",
     "build": "npm run build:shared && npm run build:frontend && npm run build:server",
     "build:frontend": "cd frontend && npm run build",
     "build:server": "cd server && npm run build",
@@ -18,13 +19,17 @@
     "test": "npm run build:shared && npm run test:server && npm run test:frontend",
     "test:frontend": "cd frontend && npm run test",
     "test:server": "cd server && npm test",
+    "test:e2e": "wait-on http://127.0.0.1:4020/health http://localhost:5180 && playwright test",
     "typecheck": "cd frontend && npm run typecheck",
     "lint": "npm run lint:frontend && npm run lint:server",
     "lint:frontend": "cd frontend && npm run lint",
     "lint:server": "cd server && npm run lint"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "concurrently": "^8.2.0",
-    "typescript": "^5.5.3"
+    "cross-env": "^10.1.0",
+    "typescript": "^5.5.3",
+    "wait-on": "^9.0.4"
   }
 }

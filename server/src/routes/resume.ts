@@ -7,9 +7,11 @@ import mammoth from 'mammoth';
 import { Types } from 'mongoose';
 import { analyzeResume } from '../openai';
 import { requireAuth } from '../middleware/authMiddleware';
+import { consumeQuota, hasFeature } from '../billing/entitlements';
 import Resume from '../models/Resume';
 import ResumeVersion from '../models/ResumeVersion';
 import Feedback from '../models/Feedback';
+import { trackEvent } from '../analytics/events';
 
 const router = express.Router();
 
@@ -113,6 +115,11 @@ router.post('/upload', requireAuth, (req, res, next) => {
       resumeId: resumeId.toString(),
       versionId: versionDoc._id.toString(),
     });
+    trackEvent({
+      userId,
+      event: 'resume.upload',
+      props: { chars: contentText.length, has_file: !!req.file },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'upload failed' });
@@ -214,6 +221,7 @@ router.delete('/:resumeId', requireAuth, async (req, res) => {
     }
     await Resume.deleteOne({ _id: resumeId, user_id: userId });
     res.json({ ok: true });
+    trackEvent({ userId, event: 'resume.delete', props: { resume_id: resumeId } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'delete failed' });
@@ -276,6 +284,20 @@ router.post(
     try {
       const { versionId } = req.params;
       const userId = req.user?.id as string;
+      const canProcess = await hasFeature(userId, 'resume.ai_process');
+      if (!canProcess) {
+        res.status(403).json({ error: 'Plan insuffisant pour le traitement IA', code: 'UPGRADE_REQUIRED' });
+        return;
+      }
+      const q = await consumeQuota(userId, 'resume_ai_process_runs_per_month');
+      if (!q.allowed) {
+        res.status(429).json({
+          error: 'Quota mensuel atteint pour le traitement IA.',
+          code: 'QUOTA_EXCEEDED',
+          limit_key: 'resume_ai_process_runs_per_month',
+        });
+        return;
+      }
       const owned = await assertVersionOwner(versionId, userId);
       if (!owned) {
         res.status(404).json({ error: 'version not found' });
@@ -301,6 +323,11 @@ router.post(
         ok: true,
         newVersionId: newVersionDoc._id.toString(),
         analysis: analysis.parsed,
+      });
+      trackEvent({
+        userId,
+        event: 'resume.ai_process',
+        props: { source_version_id: versionId, new_version_id: newVersionDoc._id.toString() },
       });
     } catch (err) {
       console.error(err);
@@ -361,6 +388,20 @@ router.post('/:resumeId/tailor', requireAuth, express.json(), async (req, res) =
     const { resumeId } = req.params;
     const { industry } = req.body as { industry?: string };
     const userId = req.user?.id as string;
+    const canMatch = await hasFeature(userId, 'cv.job_match');
+    if (!canMatch) {
+      res.status(403).json({ error: 'Pro requis pour le mode tailoring', code: 'UPGRADE_REQUIRED' });
+      return;
+    }
+    const q = await consumeQuota(userId, 'cv_job_matches_per_month');
+    if (!q.allowed) {
+      res.status(429).json({
+        error: 'Quota mensuel atteint pour le tailoring par secteur.',
+        code: 'QUOTA_EXCEEDED',
+        limit_key: 'cv_job_matches_per_month',
+      });
+      return;
+    }
     const resumeOwned = await assertResumeOwner(resumeId, userId);
     if (!resumeOwned) {
       res.status(404).json({ error: 'resume not found' });
