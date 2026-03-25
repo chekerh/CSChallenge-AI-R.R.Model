@@ -15,9 +15,10 @@
     "build:frontend": "cd frontend && npm run build",
     "build:server": "cd server && npm run build",
     "build:shared": "cd shared && tsc",
-    "test": "npm run test:frontend && npm run test:server",
-    "test:frontend": "cd frontend && npm test",
+    "test": "npm run build:shared && npm run test:server && npm run test:frontend",
+    "test:frontend": "cd frontend && npm run test",
     "test:server": "cd server && npm test",
+    "typecheck": "cd frontend && npm run typecheck",
     "lint": "npm run lint:frontend && npm run lint:server",
     "lint:frontend": "cd frontend && npm run lint",
     "lint:server": "cd server && npm run lint"

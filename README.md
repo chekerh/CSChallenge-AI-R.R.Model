@@ -2,6 +2,17 @@
 
 This workspace contains a frontend (React + TypeScript) and a server subproject with migrations and edge functions for OpenAI and Kaggle integration.
 
+## Current stack (source of truth)
+
+| Layer | Technology |
+|-------|------------|
+| API & persistence | **Node.js**, **Express**, **MongoDB** (**Mongoose**) — `server/` |
+| Web app | **Vite**, **React**, **TypeScript** — `frontend/` |
+| Shared contracts | **TypeScript** — `shared/` |
+| Optional | `edge/` (Deno) scripts; Kaggle / Google OAuth env vars are optional |
+
+**Do not use PostgreSQL for this repo** unless you are maintaining a separate fork. Legacy PostgreSQL/Bolt wording is archived under [`docs/archive/SETUP-LEGACY-POSTGRES-NOTES.md`](docs/archive/SETUP-LEGACY-POSTGRES-NOTES.md).
+
 ## Prerequisites
 
 Before setting up the project, ensure you have the following installed:
@@ -159,42 +170,9 @@ utopiahire/
 
 ---
 
-## Quick setup (high level):
+## MongoDB setup
 
-Quick setup (high level):
-
-1. Root project: install frontend deps (run in project root where package.json exists).
-
-2. Server:
-
-   - cd server
-   - npm install
-   - Create a `.env` file in `server/` (you can copy `.env.example`) and fill required values. Example variables:
-
-     DATABASE_URL=postgresql://user:password@localhost:5432/utopiahire
-     JWT_SECRET=your_jwt_secret
-     OPENAI_API_KEY=sk-...
-     KAGGLE_USERNAME=your_kaggle_username
-     KAGGLE_KEY=your_kaggle_key
-
-     (Optional for Google OAuth)
-     GOOGLE_CLIENT_ID=...
-     GOOGLE_CLIENT_SECRET=...
-     GOOGLE_CALLBACK=http://localhost:4000/auth/google/callback
-
-   - Run migrations: `npm run migrate`
-   - Run dev server: `npm run dev`
-
-3. Edge functions (Deno): set environment variables and deploy to your edge platform or run with deno run --allow-net --allow-env edge/openai_processor.ts
-
-Notes:
-- The server uses PostgreSQL (Bolt compatible). Migrations are in `server/migrations`.
-- The OpenAI edge function calls the OpenAI chat completion endpoint and attempts to parse JSON suggestions.
-- The Kaggle edge function demonstrates fetching dataset metadata using basic auth; Kaggle's recommended usage is via the official Python client and may require adaptation.
-
-MongoDB setup notes (you already have Compass connected to localhost:27017)
-
-This project now uses MongoDB (Mongoose). If you already have MongoDB running (Compass shows `localhost:27017` and a `utopiahire` database), you only need to provide the connection string.
+This project uses **MongoDB (Mongoose)**. If MongoDB is running locally (e.g. Compass on `localhost:27017` and database `utopiahire`), set the connection string in `server/.env`.
 
 1) Set `server/.env` (copy `server/.env.example` to `server/.env`) and make sure these values are set:
 
@@ -230,7 +208,7 @@ npm run dev
 Invoke-WebRequest -Uri http://localhost:4000/health -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # signup
-$resp = Invoke-RestMethod -Uri http://localhost:4000/auth/signup -Method POST -Body (ConvertTo-Json @{ email='you@example.com'; password='secret'; name='Local User' }) -ContentType 'application/json'
+$resp = Invoke-RestMethod -Uri http://localhost:4000/auth/signup -Method POST -Body (ConvertTo-Json @{ email='you@example.com'; password='password123'; name='Local User' }) -ContentType 'application/json'
 $token = $resp.token
 
 # test upload with token (text only)

@@ -15,19 +15,39 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets and local env (never commit real keys)
 .env
+.env.*
+!.env.example
+!**/.env.example
 .env.exemple
-server/.env.example
+
 # Vite cache
 .vite/
+.cache/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Test / tooling output
+coverage/
+playwright-report/
+test-results/
+.turbo/
+
+# Certificates and temp dumps
+*.pem
+*.p12
+tmp/
+temp/
+*.pid
 
 # Server uploads (runtime generated files)
 server/uploads/
