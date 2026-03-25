@@ -6,7 +6,9 @@ const UserSchema = new Schema({
   password_hash: String,
   provider: String,
   provider_id: String,
-  created_at: { type: Date, default: Date.now }
+  /** Subscription tier for CV Pro gating */
+  plan: { type: String, enum: ['free', 'pro'], default: 'free' },
+  created_at: { type: Date, default: Date.now },
 });
 
 export default model('User', UserSchema);

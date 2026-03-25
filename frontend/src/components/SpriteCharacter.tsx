@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 interface SpriteCharacterProps {
   spriteSheet: string;
@@ -20,7 +20,7 @@ const stateToFrameMap = {
 
 export default function SpriteCharacter({
   spriteSheet,
-  frameCount,
+  frameCount: _unusedFrameCount,
   fps,
   width,
   height,

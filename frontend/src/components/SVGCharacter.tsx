@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface SVGCharacterProps {
   state: 'idle' | 'talking' | 'thinking' | 'happy' | 'lookingAway';
   message?: string;

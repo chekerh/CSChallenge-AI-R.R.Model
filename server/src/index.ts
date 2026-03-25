@@ -1,70 +1,84 @@
+import './config/env';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import mongoose from 'mongoose';
 import passport from 'passport';
 import authRouter from './auth';
 import resumeRouter from './routes/resume';
 import kaggleRouter from './routes/kaggle';
+import cvPremiumRouter from './routes/cvPremium';
 import { connect } from './db';
-
-// Load environment variables
-dotenv.config();
+import { getCorsOrigins, isProduction } from './config/env';
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+if (isProduction()) {
+  app.set('trust proxy', 1);
+}
+
+const corsOrigins = getCorsOrigins();
+app.use(
+  cors({
+    origin: corsOrigins === true ? true : corsOrigins,
+    credentials: true,
+  })
+);
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(express.json({ limit: '2mb' }));
 app.use(passport.initialize());
 
-let isConnected = false;
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isProduction() ? 30 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-// simple request logger for debugging connectivity
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isProduction() ? 300 : 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.path} from ${req.ip}`);
+  const ts = new Date().toISOString();
+  if (isProduction()) {
+    console.log(`${ts} ${req.method} ${req.path}`);
+  } else {
+    console.log(`${ts} ${req.method} ${req.path} from ${req.ip}`);
+  }
   next();
 });
 
-app.use('/auth', authRouter);
-app.use('/resumes', resumeRouter);
-app.use('/kaggle', kaggleRouter);
+app.use('/auth', authLimiter, authRouter);
+app.use('/resumes', apiLimiter, resumeRouter);
+app.use('/kaggle', apiLimiter, kaggleRouter);
+app.use('/cv', apiLimiter, cvPremiumRouter);
 
-app.get('/health', async (req, res) => {
+app.get('/health', async (_req, res) => {
   try {
-    console.log('health check from', req.ip, 'headers:', {
-      host: req.headers.host,
-      origin: req.headers.origin,
-      'user-agent': req.headers['user-agent'],
-    });
-    res.json({ ok: true });
+    const dbOk = mongoose.connection.readyState === 1;
+    const body = { ok: dbOk, db: dbOk ? 'up' : 'down' };
+    res.status(dbOk ? 200 : 503).json(body);
   } catch (err) {
     console.error('health error', err);
-    res.status(500).json({ ok: false, error: String(err) });
+    res.status(503).json({ ok: false, db: 'error' });
   }
 });
 
 const port = parseInt(process.env.PORT || '4000', 10);
-const host = '0.0.0.0'; // Listen on all network interfaces
+const host = process.env.HOST || '0.0.0.0';
 
-// Start server after connecting to MongoDB
-async function startServer() {
-  try {
-    if (!isConnected) {
-      console.log('Connecting to MongoDB...');
-      await connect();
-      isConnected = true;
-      console.log('MongoDB connected');
-    }
-
-    app.listen(port, host, () => {
-      console.log(`Server running on http://${host}:${port}`);
-      console.log(`Health check endpoint: http://localhost:${port}/health`);
-    });
-  } catch (err) {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-  }
+async function startServer(): Promise<void> {
+  await connect();
+  app.listen(port, host, () => {
+    console.log(`Server running on http://${host}:${port}`);
+    console.log(`Health: http://localhost:${port}/health`);
+  });
 }
 
-// better process-level handlers to capture why the process might exit
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
 });
@@ -72,14 +86,7 @@ process.on('unhandledRejection', (reason) => {
   console.error('Unhandled Rejection:', reason);
 });
 
-startServer();
-
-console.log('Connecting to MongoDB...');
-connect().then(() => {
-  const host = process.env.HOST || '127.0.0.1';
-  const portNum = Number(port);
-  app.listen(portNum, host, () => console.log(`Server running on http://${host}:${portNum}`));
-}).catch(err => {
-  console.error('Failed to connect to DB', err);
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
   process.exit(1);
 });

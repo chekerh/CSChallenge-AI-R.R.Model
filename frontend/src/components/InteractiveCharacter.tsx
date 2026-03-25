@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 interface CharacterProps {
   isLookingAway?: boolean;
@@ -7,7 +7,7 @@ interface CharacterProps {
 }
 
 export default function InteractiveCharacter({ isLookingAway, isCurious, isHappy }: CharacterProps) {
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [, setPosition] = useState({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
 
   useEffect(() => {

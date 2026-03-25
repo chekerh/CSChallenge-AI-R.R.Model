@@ -1,8 +1,7 @@
-import React from 'react';
 import Lottie from 'react-lottie';
 
 interface LottieCharacterProps {
-  animationData: any;
+  animationData: object;
   state: 'idle' | 'talking' | 'thinking' | 'happy' | 'lookingAway';
   message?: string;
   width?: number;
@@ -11,7 +10,7 @@ interface LottieCharacterProps {
 
 export default function LottieCharacter({
   animationData,
-  state,
+  state: _unusedState,
   message,
   width = 200,
   height = 200

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { User, Key, Mail, Loader2 } from 'lucide-react';
 import { API_BASE } from '../api';
 import AssistantCharacter from './AssistantCharacter';
@@ -51,6 +51,7 @@ export default function AuthForm({ onAuth }: { onAuth: (token: string) => void }
       {/* Advisor Character */}
       <AssistantCharacter
         {...assistantCharacters.advisor}
+        interactive={false}
         state={isFocused === 'password' ? 'lookingAway' : 
                isFocused === 'email' ? 'curious' :
                isLoading ? 'happy' : 'normal'}
@@ -63,6 +64,7 @@ export default function AuthForm({ onAuth }: { onAuth: (token: string) => void }
       {/* Recruiter Character */}
       <AssistantCharacter
         {...assistantCharacters.recruiter}
+        interactive={false}
         state={isFocused === 'name' ? 'curious' :
                isLoading ? 'happy' : 'normal'}
         message={isFocused === 'name' ? assistantCharacters.recruiter.messages.curious :
@@ -70,7 +72,7 @@ export default function AuthForm({ onAuth }: { onAuth: (token: string) => void }
                 assistantCharacters.recruiter.messages.normal}
       />
       
-      <div className="text-center">
+      <div className="text-center relative z-10">
         <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
           {mode === 'login' ? 'Welcome back' : 'Create your account'}
         </h2>
@@ -99,7 +101,7 @@ export default function AuthForm({ onAuth }: { onAuth: (token: string) => void }
         </p>
       </div>
 
-      <form className="mt-8 space-y-6" onSubmit={submit}>
+      <form className="mt-8 space-y-6 relative z-10" onSubmit={submit}>
         <div className="rounded-md shadow-sm space-y-4">
           {mode === 'signup' && (
             <div className="relative">

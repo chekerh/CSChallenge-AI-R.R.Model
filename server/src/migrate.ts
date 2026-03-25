@@ -7,7 +7,12 @@ async function run() {
   await User.createIndexes();
   const existing = await User.findOne({ email: 'test@local' }).lean();
   if (!existing) {
-    await User.create({ email: 'test@local', name: 'Test User', password_hash: '' });
+    await User.create({
+      email: 'test@local',
+      name: 'Test User',
+      password_hash: '',
+      provider: 'local',
+    });
     console.log('Seeded test user test@local (no password)');
   }
   console.log('Migration complete');
