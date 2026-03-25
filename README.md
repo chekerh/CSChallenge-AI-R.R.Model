@@ -156,133 +156,58 @@ utopiahire/
 
 ## Troubleshooting
 
-- **Port conflicts**: Ensure ports 4000 (server) and 5173 (frontend) are available
+- **Port conflicts**: Ensure ports 4000 (server) and 5173 (frontend) are available (`lsof -nP -iTCP:4000 -sTCP:LISTEN`)
 - **MongoDB connection**: Verify MongoDB is running and the connection string is correct
 - **Dependencies**: Run `npm install` in each workspace if you encounter missing modules
 - **Environment variables**: Ensure all required `.env` variables are set correctly
+
+## Product status (current)
+
+UtopiaHire now includes:
+
+- **Admin roles + dashboard** (`admin`, `support`, `super_admin`) with RBAC
+- **Dynamic plans** (`/public/plans`) and admin plan management (`/admin/plans`)
+- **Dynamic content blocks** with draft/publish (`/admin/content`)
+- **Server-side entitlement and quota enforcement** on premium AI routes
+- **Analytics events** and admin metrics endpoint (`/admin/analytics`)
+- **Playwright E2E suite** for user/admin critical paths
+
+## E2E testing
+
+Run in two steps:
+
+```bash
+# Terminal 1
+npm run dev:e2e
+
+# Terminal 2
+E2E_WEB_SERVER=1 npm run test:e2e
+```
+
+What it covers right now:
+
+- signup flow
+- admin dashboard access + analytics view
+- classic CV upload happy path
+
+## Admin bootstrap (local/dev)
+
+To elevate an existing user to super admin on startup:
+
+```env
+BOOTSTRAP_SUPER_ADMIN_EMAIL=you@example.com
+```
+
+Put it in `server/.env` (never commit real `.env` files).
 
 ## Contributing
 
 1. Create a feature branch from `main`
 2. Make your changes
-3. Run tests and linting: `npm run test && npm run lint`
+3. Run tests and linting:
+   - `npm run lint`
+   - `npm test`
+   - `E2E_WEB_SERVER=1 npm run test:e2e` (if e2e servers are already running)
 4. Submit a pull request
-
----
-
-## MongoDB setup
-
-This project uses **MongoDB (Mongoose)**. If MongoDB is running locally (e.g. Compass on `localhost:27017` and database `utopiahire`), set the connection string in `server/.env`.
-
-1) Set `server/.env` (copy `server/.env.example` to `server/.env`) and make sure these values are set:
-
-```
-MONGODB_URI=mongodb://localhost:27017/utopiahire
-JWT_SECRET=replace_with_a_strong_secret
-OPENAI_API_KEY=sk-...   # you mentioned you have provided this key
-KAGGLE_USERNAME=        # optional
-KAGGLE_KEY=             # optional
-```
-
-2) Install server deps and run migration/seed:
-
-```powershell
-cd C:\Users\Dell\Documents\CVModel\project\server
-npm install
-npm run migrate
-```
-
-3) Start server and open frontend (Vite):
-
-```powershell
-npm run dev    # in server directory
-# in project root (frontend)
-npm install
-npm run dev
-```
-
-4) Quick API checks (PowerShell):
-
-```powershell
-# health
-Invoke-WebRequest -Uri http://localhost:4000/health -UseBasicParsing | Select-Object -ExpandProperty Content
-
-# signup
-$resp = Invoke-RestMethod -Uri http://localhost:4000/auth/signup -Method POST -Body (ConvertTo-Json @{ email='you@example.com'; password='password123'; name='Local User' }) -ContentType 'application/json'
-$token = $resp.token
-
-# test upload with token (text only)
-Invoke-RestMethod -Uri http://localhost:4000/resumes/upload -Method Post -Headers @{ Authorization = "Bearer $token" } -Body (ConvertTo-Json @{ title='My CV'; text='This is the resume content' }) -ContentType 'application/json'
-```
-
-Notes:
-- Compass shows the `utopiahire` database and collections — migrations create indexes and will seed a test user. Use Compass to verify data after you run migrations.
-- The server uses your `OPENAI_API_KEY` to call OpenAI when you trigger processing on a resume version.
- 
-## How to run locally (step-by-step)
-
-1) Backend
-
-```powershell
-cd C:\Users\Dell\Documents\CVModel\project\server
-copy .env.example .env    # edit .env and fill your keys (or create manually)
-npm install
-npm run migrate
-npm run dev
-```
-
-The server binds to 127.0.0.1:4000 by default. If curl or PowerShell can't reach it, try these troubleshooting steps:
-
-- Use 127.0.0.1 explicitly with curl: `curl.exe http://127.0.0.1:4000/health`
-- Open `http://127.0.0.1:4000/health` in your browser.
-- If you need to add a firewall rule, run PowerShell as Administrator and then:
-
-```powershell
-New-NetFirewallRule -DisplayName "Allow 4000" -Direction Inbound -LocalPort 4000 -Protocol TCP -Action Allow
-```
-
-2) Frontend (from project root)
-
-```powershell
-cd C:\Users\Dell\Documents\CVModel\project
-npm install
-npm run dev
-```
-
-Open the Vite URL printed by the dev server (usually http://localhost:5173).
-
-3) Quick checks
-
-```powershell
-# check port listener
-netstat -ano | Select-String ':4000'
-
-# test connection
-curl.exe http://127.0.0.1:4000/health
-```
-
-If anything fails, capture the server terminal output (the server logs incoming requests and errors), and paste it here.
-
-Smoke test (quick end-to-end check)
-
-After starting the backend (`npm run dev` in the `server` folder) you can run a quick smoke test which signs up, logs in, creates a resume and calls the processing endpoint. From the `server` folder:
-
-```powershell
-npm install
-npm run smoke
-```
-
-The smoke test uses `127.0.0.1:4000` by default. If your server is bound to another host/port, set the `BASE` environment variable before running the script.
-
-One-command start (Windows PowerShell)
-
-If you want a single command to open backend and frontend dev terminals and run the smoke test, use the supplied PowerShell helper from the project root:
-
-```powershell
-.
-\start-all.ps1
-```
-
-This will open two new PowerShell windows (backend and frontend), wait a few seconds, then run the smoke test in a third window. Adjust the script if you change ports or the backend host.
 
 

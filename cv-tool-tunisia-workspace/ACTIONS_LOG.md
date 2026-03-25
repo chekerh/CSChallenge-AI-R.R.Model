@@ -44,3 +44,18 @@
 - Persistent `CvAnalysis` collection  
 - Real DOCX/PDF layout parser  
 - Native copy review for all dialect preferences  
+
+## 2026-03-25 — Product + QA pass (automated browser)
+
+### Journeys completed
+
+- Signup/login works end-to-end.
+- Classic CV flow works end-to-end: upload → list → view → download text → retry AI processing → delete.
+- CV Builder: draft save + publish creates a classic resume entry.
+- CV Pro: diagnosis endpoint returns 503 when OpenAI not configured (expected); UI should surface friendly “set `OPENAI_API_KEY`” message.
+
+### Key gaps noticed (money-making)
+
+- No **pricing/upgrade** screen inside the app (only implicit Pro gating).
+- No “job application workflow”: no **job tracker**, no **cover letter**, no **ATS export**, no **interview prep**.
+- No Tunisia-specific “trust builders”: localized templates, French/English/Arabic switch, diploma phrasing helpers, or recruiter-style examples.

@@ -39,3 +39,21 @@
 
 - Classic mode is **usable** for users with multiple CVs and closes the loop from **Créer mon CV → Publier → traitement IA**.
 - Account/plan visibility supports **monetization narrative** (upgrade path still backend/ops).
+
+## 2026-03-25 — Full UI walkthrough (automated browser)
+
+### What was exercised (buttons + flows)
+
+- **Auth**: signup with email/password/name → authenticated shell appears.
+- **Classic mode**: paste text → upload → resume appears in list → download text → AI process retry shows friendly config error when OpenAI not configured → delete resume with confirm.
+- **CV Builder**: fill basic fields → save draft → publish to classic list → classic mode shows published resume.
+- **CV Pro mode**: paste CV text → run diagnosis hits backend; request returns **503** when OpenAI key missing (expected for local without key).
+
+### Issues found and fixed
+
+- **AuthForm crash**: backend error payload could be an object; UI attempted to render it directly causing React to crash.
+  - Fixed `frontend/src/components/AuthForm.tsx` to coerce errors to a safe string and handle missing `token` gracefully.
+
+### Notes
+
+- Local dev had a port collision on **:4000** with an unrelated process; for local testing the API can be run on another port via `server/.env` (ignored by git).
