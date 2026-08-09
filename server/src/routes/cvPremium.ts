@@ -1,6 +1,9 @@
 import express from 'express';
+import pino from 'pino';
 import { compileProfileToPlainText } from '@utopiahire/shared';
 import { requireAuth } from '../middleware/authMiddleware';
+
+const log = pino({ name: 'cv-premium' });
 import {
   assertOutputLanguage,
   assertTargetRole,
@@ -35,11 +38,15 @@ router.post('/diagnosis', requireAuth, async (req, res) => {
       res.status(400).json({ error: 'invalid targetRole' });
       return;
     }
-    if (!assertOutputLanguage(body.outputLanguage)) {
+    const outputLang = body.outputLanguage || 'fr';
+    if (!assertOutputLanguage(outputLang)) {
       res.status(400).json({ error: 'invalid outputLanguage' });
       return;
     }
     const userId = req.user!.id;
+    const plan = await loadUserPlan(userId);
+    const full = await runDeepDiagnosis(body.text, outputLang, body.targetRole);
+
     const q = await consumeQuota(userId, 'cv_diagnosis_runs_per_month');
     if (!q.allowed) {
       res.status(429).json({
@@ -49,8 +56,6 @@ router.post('/diagnosis', requireAuth, async (req, res) => {
       });
       return;
     }
-    const plan = await loadUserPlan(userId);
-    const full = await runDeepDiagnosis(body.text, body.outputLanguage, body.targetRole);
 
     const doc = await CvAnalysis.create({
       user_id: userId,
@@ -90,7 +95,7 @@ router.post('/diagnosis', requireAuth, async (req, res) => {
       res.status(400).json({ error: msg });
       return;
     }
-    console.error(e);
+    log.error({ err: e }, 'diagnosis failed');
     res.status(500).json({ error: 'diagnosis failed' });
   }
 });
@@ -106,6 +111,14 @@ router.post('/rewrite-section', requireAuth, async (req, res) => {
       });
       return;
     }
+    const body = parseBody(cvRewriteBodySchema, req.body);
+    const result = await runRewriteSection({
+      sectionType: body.sectionType,
+      sectionText: body.sectionText,
+      outputLanguage: body.outputLanguage || 'fr',
+      targetRole: body.targetRole,
+    });
+
     const q = await consumeQuota(userId, 'cv_rewrite_sections_per_month');
     if (!q.allowed) {
       res.status(429).json({
@@ -115,13 +128,6 @@ router.post('/rewrite-section', requireAuth, async (req, res) => {
       });
       return;
     }
-    const body = parseBody(cvRewriteBodySchema, req.body);
-    const result = await runRewriteSection({
-      sectionType: body.sectionType,
-      sectionText: body.sectionText,
-      outputLanguage: body.outputLanguage,
-      targetRole: body.targetRole,
-    });
     res.json(result);
     trackEvent({
       userId,
@@ -142,7 +148,7 @@ router.post('/rewrite-section', requireAuth, async (req, res) => {
       res.status(400).json({ error: msg });
       return;
     }
-    console.error(e);
+    log.error({ err: e }, 'rewrite failed');
     res.status(500).json({ error: 'rewrite failed' });
   }
 });
@@ -158,6 +164,14 @@ router.post('/job-match', requireAuth, async (req, res) => {
       });
       return;
     }
+    const body = parseBody(cvJobMatchBodySchema, req.body);
+    const result = await runJobMatch(
+      body.text,
+      body.jobDescription,
+      body.outputLanguage || 'fr',
+      body.targetRole
+    );
+
     const q = await consumeQuota(userId, 'cv_job_matches_per_month');
     if (!q.allowed) {
       res.status(429).json({
@@ -167,13 +181,6 @@ router.post('/job-match', requireAuth, async (req, res) => {
       });
       return;
     }
-    const body = parseBody(cvJobMatchBodySchema, req.body);
-    const result = await runJobMatch(
-      body.text,
-      body.jobDescription,
-      body.outputLanguage,
-      body.targetRole
-    );
     res.json(result);
     trackEvent({
       userId,
@@ -194,7 +201,7 @@ router.post('/job-match', requireAuth, async (req, res) => {
       res.status(400).json({ error: msg });
       return;
     }
-    console.error(e);
+    log.error({ err: e }, 'job match failed');
     res.status(500).json({ error: 'job match failed' });
   }
 });
@@ -215,7 +222,7 @@ router.get('/builder/draft', requireAuth, async (req, res) => {
       },
     });
   } catch (e) {
-    console.error(e);
+    log.error({ err: e }, 'failed to load draft');
     res.status(500).json({ error: 'failed to load draft' });
   }
 });
@@ -246,7 +253,7 @@ router.post('/builder/draft', requireAuth, async (req, res) => {
       validationErr(e, res);
       return;
     }
-    console.error(e);
+    log.error({ err: e }, 'failed to save draft');
     res.status(500).json({ error: 'failed to save draft' });
   }
 });
@@ -290,7 +297,7 @@ router.post('/builder/publish', requireAuth, async (req, res) => {
       validationErr(e, res);
       return;
     }
-    console.error(e);
+    log.error({ err: e }, 'publish failed');
     res.status(500).json({ error: 'publish failed' });
   }
 });

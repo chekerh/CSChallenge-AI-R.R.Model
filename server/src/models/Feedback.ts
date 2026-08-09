@@ -7,4 +7,6 @@ const FeedbackSchema = new Schema({
   created_at: { type: Date, default: Date.now }
 });
 
+FeedbackSchema.index({ resume_version_id: 1 });
+
 export default model('Feedback', FeedbackSchema);

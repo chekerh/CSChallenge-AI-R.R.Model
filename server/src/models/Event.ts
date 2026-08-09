@@ -8,6 +8,7 @@ const EventSchema = new Schema({
 });
 
 EventSchema.index({ event: 1, created_at: -1 });
+EventSchema.index({ created_at: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
 export default model('Event', EventSchema);
 

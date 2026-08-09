@@ -1,6 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import fs from 'fs/promises';
+import { unlinkSync } from 'fs';
 import path from 'path';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
@@ -12,6 +13,9 @@ import Resume from '../models/Resume';
 import ResumeVersion from '../models/ResumeVersion';
 import Feedback from '../models/Feedback';
 import { trackEvent } from '../analytics/events';
+import pino from 'pino';
+
+const log = pino({ name: 'resume' });
 
 const router = express.Router();
 
@@ -82,8 +86,8 @@ router.post('/upload', requireAuth, (req, res, next) => {
       res.status(401).json({ error: 'Missing user id' });
       return;
     }
-    const title =
-      (req.body.title as string) || req.file?.originalname || 'Untitled';
+    const rawTitle = (req.body.title as string) || req.file?.originalname || 'Untitled';
+    const title = String(rawTitle).trim().slice(0, 200);
     const resumeDoc = await Resume.create({ user_id: userId, title });
     const resumeId = resumeDoc._id;
     let contentText = (req.body.text as string) || '';
@@ -102,7 +106,7 @@ router.post('/upload', requireAuth, (req, res, next) => {
           contentText = buf.toString('utf8');
         }
       } catch (e) {
-        console.warn('file extraction failed', e);
+        log.warn({ e }, 'file extraction failed');
       }
     }
     const versionDoc = await ResumeVersion.create({
@@ -111,6 +115,10 @@ router.post('/upload', requireAuth, (req, res, next) => {
       content_text: contentText,
       storage_path: storagePath,
     });
+    if (req.file?.path) {
+      try { unlinkSync(req.file.path); } catch { /* ignore cleanup errors */ }
+    }
+
     res.json({
       resumeId: resumeId.toString(),
       versionId: versionDoc._id.toString(),
@@ -121,7 +129,7 @@ router.post('/upload', requireAuth, (req, res, next) => {
       props: { chars: contentText.length, has_file: !!req.file },
     });
   } catch (err) {
-    console.error(err);
+    log.error({ err }, 'upload failed');
     res.status(500).json({ error: 'upload failed' });
   }
 });
@@ -133,8 +141,8 @@ router.post('/create', requireAuth, express.json(), async (req, res) => {
       res.status(401).json({ error: 'Missing user id' });
       return;
     }
-    const title = (req.body.title as string) || 'Untitled';
-    const text = (req.body.text as string) || '';
+    const title = String(req.body.title || 'Untitled').trim().slice(0, 200);
+    const text = String(req.body.text || '').slice(0, 100_000);
     const resumeDoc = await Resume.create({ user_id: userId, title });
     const versionDoc = await ResumeVersion.create({
       resume_id: resumeDoc._id,
@@ -147,7 +155,7 @@ router.post('/create', requireAuth, express.json(), async (req, res) => {
       versionId: versionDoc._id.toString(),
     });
   } catch (e) {
-    console.error(e);
+    log.error({ e }, 'create failed');
     res.status(500).json({ error: 'create failed' });
   }
 });
@@ -223,7 +231,7 @@ router.delete('/:resumeId', requireAuth, async (req, res) => {
     res.json({ ok: true });
     trackEvent({ userId, event: 'resume.delete', props: { resume_id: resumeId } });
   } catch (err) {
-    console.error(err);
+    log.error({ err }, 'delete failed');
     res.status(500).json({ error: 'delete failed' });
   }
 });
@@ -289,6 +297,14 @@ router.post(
         res.status(403).json({ error: 'Plan insuffisant pour le traitement IA', code: 'UPGRADE_REQUIRED' });
         return;
       }
+      const owned = await assertVersionOwner(versionId, userId);
+      if (!owned) {
+        res.status(404).json({ error: 'version not found' });
+        return;
+      }
+      const { version } = owned;
+      const analysis = await analyzeResume(version.content_text);
+
       const q = await consumeQuota(userId, 'resume_ai_process_runs_per_month');
       if (!q.allowed) {
         res.status(429).json({
@@ -298,13 +314,6 @@ router.post(
         });
         return;
       }
-      const owned = await assertVersionOwner(versionId, userId);
-      if (!owned) {
-        res.status(404).json({ error: 'version not found' });
-        return;
-      }
-      const { version } = owned;
-      const analysis = await analyzeResume(version.content_text);
       const improvedText =
         (analysis.parsed as { improved_text?: string })?.improved_text ||
         analysis.raw;
@@ -330,7 +339,7 @@ router.post(
         props: { source_version_id: versionId, new_version_id: newVersionDoc._id.toString() },
       });
     } catch (err) {
-      console.error(err);
+      log.error({ err }, 'processing failed');
       const message = err instanceof Error ? err.message : 'processing failed';
       if (message.includes('OPENAI_API_KEY')) {
         res.status(503).json({ error: 'AI service not configured' });
@@ -378,7 +387,7 @@ router.post('/:resumeId/accept', requireAuth, express.json(), async (req, res) =
     });
     res.json({ ok: true, finalVersionId: finalDoc._id.toString() });
   } catch (err) {
-    console.error(err);
+    log.error({ err }, 'accept failed');
     res.status(500).json({ error: 'accept failed' });
   }
 });
@@ -391,15 +400,6 @@ router.post('/:resumeId/tailor', requireAuth, express.json(), async (req, res) =
     const canMatch = await hasFeature(userId, 'cv.job_match');
     if (!canMatch) {
       res.status(403).json({ error: 'Pro requis pour le mode tailoring', code: 'UPGRADE_REQUIRED' });
-      return;
-    }
-    const q = await consumeQuota(userId, 'cv_job_matches_per_month');
-    if (!q.allowed) {
-      res.status(429).json({
-        error: 'Quota mensuel atteint pour le tailoring par secteur.',
-        code: 'QUOTA_EXCEEDED',
-        limit_key: 'cv_job_matches_per_month',
-      });
       return;
     }
     const resumeOwned = await assertResumeOwner(resumeId, userId);
@@ -415,6 +415,16 @@ router.post('/:resumeId/tailor', requireAuth, express.json(), async (req, res) =
       return;
     }
     const analysis = await analyzeResume(latest.content_text, { industry });
+
+    const q = await consumeQuota(userId, 'cv_job_matches_per_month');
+    if (!q.allowed) {
+      res.status(429).json({
+        error: 'Quota mensuel atteint pour le tailoring par secteur.',
+        code: 'QUOTA_EXCEEDED',
+        limit_key: 'cv_job_matches_per_month',
+      });
+      return;
+    }
     await Feedback.create({
       resume_version_id: latest._id,
       author: 'ai',
@@ -424,9 +434,9 @@ router.post('/:resumeId/tailor', requireAuth, express.json(), async (req, res) =
       },
     });
     res.json({ ok: true, analysis: analysis.parsed });
-  } catch (err) {
-    console.error(err);
-    const message = err instanceof Error ? err.message : 'tailor failed';
+    } catch (err) {
+      log.error({ err }, 'tailor failed');
+      const message = err instanceof Error ? err.message : 'tailor failed';
     if (message.includes('OPENAI_API_KEY')) {
       res.status(503).json({ error: 'AI service not configured' });
       return;
