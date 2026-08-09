@@ -1,74 +1,27 @@
-import { useEffect, useState } from 'react';
-import { fetchMe, type MeDto } from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { Shield } from 'lucide-react';
 
-export default function AppUserBar({ onOpenAdmin }: { onOpenAdmin?: () => void } = {}) {
-  const { token, logout } = useAuth();
-  const [me, setMe] = useState<MeDto | null>(null);
+interface AppUserBarProps {
+  onOpenAdmin?: () => void;
+  userRole?: string | null;
+  userPlan?: string | null;
+}
 
-  useEffect(() => {
-    if (!token) {
-      setMe(null);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const r = await fetchMe(token);
-      if (cancelled) return;
-      if ('error' in r) setMe(null);
-      else setMe(r);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [token]);
+export default function AppUserBar({ onOpenAdmin, userRole, userPlan }: AppUserBarProps = {}) {
+  if (!userRole) return null;
 
-  if (!token) return null;
-
-  const plan = me?.plan === 'pro' ? 'pro' : 'free';
-  const isAdmin = me?.role === 'admin' || me?.role === 'super_admin' || me?.role === 'support';
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'support';
+  const plan = userPlan === 'pro' ? 'pro' : 'free';
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-3 mb-6 text-sm">
-      {me?.email ? (
-        <span
-          className="text-gray-600 truncate max-w-[220px] sm:max-w-xs"
-          title={me.email}
-        >
-          {me.email}
-        </span>
-      ) : null}
-      <span
-        className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-          plan === 'pro'
-            ? 'bg-violet-100 text-violet-800'
-            : 'bg-gray-200 text-gray-700'
-        }`}
-      >
+    <div className="flex items-center gap-2">
+      {isAdmin && (
+        <button onClick={onOpenAdmin} className="btn-ghost p-2 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50" title="Admin">
+          <Shield className="w-4 h-4" />
+        </button>
+      )}
+      <span className={`badge ${plan === 'pro' ? 'badge-pro' : 'badge-free'}`}>
         {plan === 'pro' ? 'Pro' : 'Gratuit'}
       </span>
-      {plan === 'free' ? (
-        <span className="text-xs text-gray-500 max-w-md text-right hidden md:inline">
-          Passez Pro pour diagnostic complet, comparaison aux offres et réécritures.
-        </span>
-      ) : null}
-      {isAdmin ? (
-        <button
-          type="button"
-          onClick={onOpenAdmin}
-          className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
-          title="Ouvrir le panneau admin"
-        >
-          Admin
-        </button>
-      ) : null}
-      <button
-        type="button"
-        onClick={logout}
-        className="text-indigo-600 hover:text-indigo-800 font-medium"
-      >
-        Déconnexion
-      </button>
     </div>
   );
 }

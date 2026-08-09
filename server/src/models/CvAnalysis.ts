@@ -11,4 +11,6 @@ const CvAnalysisSchema = new Schema({
   created_at: { type: Date, default: Date.now },
 });
 
+CvAnalysisSchema.index({ created_at: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
 export default model('CvAnalysis', CvAnalysisSchema);

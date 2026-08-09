@@ -1,7 +1,8 @@
 import express from 'express';
-import fetch from 'node-fetch';
+import pino from 'pino';
 import { requireAuth } from '../middleware/authMiddleware';
 
+const log = pino({ name: 'kaggle' });
 const router = express.Router();
 
 router.get('/datasets', requireAuth, async (_req, res) => {
@@ -26,7 +27,7 @@ router.get('/datasets', requireAuth, async (_req, res) => {
     const data = (await r.json()) as unknown[];
     res.json({ ok: true, datasets: (data || []).slice(0, 10) });
   } catch (err) {
-    console.error(err);
+    log.error({ err }, 'kaggle proxy failed');
     res.status(500).json({ error: 'kaggle proxy failed' });
   }
 });

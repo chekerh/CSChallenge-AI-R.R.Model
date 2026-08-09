@@ -243,47 +243,4 @@ export async function processResumeVersion(
   }
 }
 
-export async function signup(
-  email: string,
-  password: string,
-  name: string
-): Promise<{ token: string } | ApiError> {
-  try {
-    const res = await fetch(`${API_BASE}/auth/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name }),
-    });
-    const data = (await parseJson(res)) as Record<string, unknown>;
-    if (!res.ok) {
-      return { error: String(data.error || 'Signup failed'), status: res.status };
-    }
-    const token = data.token as string | undefined;
-    if (!token) return { error: 'Invalid server response' };
-    return { token };
-  } catch {
-    return { error: 'Network error' };
-  }
-}
 
-export async function login(
-  email: string,
-  password: string
-): Promise<{ token: string } | ApiError> {
-  try {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = (await parseJson(res)) as Record<string, unknown>;
-    if (!res.ok) {
-      return { error: String(data.error || 'Login failed'), status: res.status };
-    }
-    const token = data.token as string | undefined;
-    if (!token) return { error: 'Invalid server response' };
-    return { token };
-  } catch {
-    return { error: 'Network error' };
-  }
-}

@@ -7,14 +7,7 @@ beforeEach(() => {
 });
 
 describe('getJwtSecret', () => {
-  it('uses dev fallback when secret missing or too short in development', async () => {
-    process.env.JWT_SECRET = 'short';
-    const { getJwtSecret } = await import('./env');
-    expect(getJwtSecret()).toBe('dev-only-change-me');
-  });
-
-  it('throws in production when secret missing or too short', async () => {
-    process.env.NODE_ENV = 'production';
+  it('throws when secret missing or too short', async () => {
     process.env.JWT_SECRET = 'short';
     const { getJwtSecret } = await import('./env');
     expect(() => getJwtSecret()).toThrow(/JWT_SECRET/);

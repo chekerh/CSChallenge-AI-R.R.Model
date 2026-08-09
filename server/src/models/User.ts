@@ -3,8 +3,8 @@ import { Schema, model } from 'mongoose';
 const UserSchema = new Schema({
   email: { type: String, required: true, unique: true },
   name: String,
-  password_hash: String,
-  provider: String,
+  password_hash: { type: String, select: false },
+  provider: { type: String, enum: ['local', 'google'] },
   provider_id: String,
   /** Application role (admin access is role-gated). */
   role: {
@@ -14,6 +14,9 @@ const UserSchema = new Schema({
   },
   /** Subscription tier for CV Pro gating */
   plan: { type: String, enum: ['free', 'pro'], default: 'free' },
+  stripe_customer_id: { type: String, select: false },
+  reset_token: { type: String, select: false },
+  reset_token_expires: Date,
   created_at: { type: Date, default: Date.now },
 });
 

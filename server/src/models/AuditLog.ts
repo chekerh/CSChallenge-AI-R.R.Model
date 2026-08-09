@@ -12,5 +12,9 @@ const AuditLogSchema = new Schema({
   created_at: { type: Date, default: Date.now },
 });
 
+AuditLogSchema.index({ created_at: -1 });
+AuditLogSchema.index({ action: 1, created_at: -1 });
+AuditLogSchema.index({ created_at: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
 export default model('AuditLog', AuditLogSchema);
 

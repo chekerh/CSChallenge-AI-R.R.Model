@@ -1,12 +1,16 @@
-/// <reference types="express" />
+import type { AppRole } from '../middleware/requireRole';
 
 declare global {
   namespace Express {
-    /** JWT-authenticated user (set by `requireAuth` middleware). */
     interface User {
       id: string;
       email?: string;
-      role?: string;
+      role?: AppRole;
+    }
+
+    interface Request {
+      id?: string;
+      user?: User;
     }
   }
 }
