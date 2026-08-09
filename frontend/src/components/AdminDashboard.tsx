@@ -1,73 +1,41 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_BASE } from '../api';
 import { useAuth } from '../contexts/AuthContext';
+import Modal from './ui/Modal';
+import {
+  Users, CreditCard, FileText, Settings, BarChart3, ClipboardList,
+  Loader2, Search, Check
+} from 'lucide-react';
 
-type AdminUserDto = {
-  _id: string;
-  email: string;
-  name?: string;
-  role?: string;
-  plan?: string;
-  created_at?: string;
-};
-
-type AdminSettingDto = {
-  _id?: string;
-  key: string;
-  type: 'string' | 'number' | 'boolean' | 'json';
-  value: unknown;
-  updated_at?: string;
-};
-
-type ContentBlockDto = {
-  _id?: string;
-  key: string;
-  status?: 'draft' | 'published';
-  content?: unknown;
-  published_content?: unknown;
-  published_at?: string | null;
-  updated_at?: string;
-};
-
-type PlanDto = {
-  _id?: string;
-  code: string;
-  name?: string;
-  description?: string;
-  currency?: string;
-  price_monthly?: number;
-  is_public?: boolean;
-  features?: string[];
-  limits?: unknown;
-};
+type AdminUserDto = { _id: string; email: string; name?: string; role?: string; plan?: string; created_at?: string; };
+type AdminSettingDto = { _id?: string; key: string; type: 'string' | 'number' | 'boolean' | 'json'; value: unknown; updated_at?: string; };
+type ContentBlockDto = { _id?: string; key: string; status?: 'draft' | 'published'; content?: unknown; published_content?: unknown; published_at?: string | null; updated_at?: string; };
+type PlanDto = { _id?: string; code: string; name?: string; description?: string; currency?: string; price_monthly?: number; is_public?: boolean; features?: string[]; limits?: unknown; };
 
 function pretty(v: unknown): string {
-  try {
-    return JSON.stringify(v, null, 2);
-  } catch {
-    return String(v);
-  }
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
 }
 
 function parseByType(type: AdminSettingDto['type'], raw: string): unknown {
   if (type === 'string') return raw;
-  if (type === 'number') {
-    const n = Number(raw);
-    if (!Number.isFinite(n)) throw new Error('Nombre invalide');
-    return n;
-  }
-  if (type === 'boolean') {
-    const s = raw.trim().toLowerCase();
-    if (s === 'true') return true;
-    if (s === 'false') return false;
-    throw new Error('Booléen invalide (utilisez true/false)');
-  }
+  if (type === 'number') { const n = Number(raw); if (!Number.isFinite(n)) throw new Error('Nombre invalide'); return n; }
+  if (type === 'boolean') { const s = raw.trim().toLowerCase(); if (s === 'true') return true; if (s === 'false') return false; throw new Error('Booléen invalide'); }
   return JSON.parse(raw) as unknown;
 }
 
+type Tab = 'users' | 'plans' | 'content' | 'settings' | 'analytics' | 'audit';
+const TABS: { id: Tab; label: string; icon: typeof Users }[] = [
+  { id: 'users', label: 'Utilisateurs', icon: Users },
+  { id: 'plans', label: 'Plans', icon: CreditCard },
+  { id: 'content', label: 'Contenu', icon: FileText },
+  { id: 'settings', label: 'Paramètres', icon: Settings },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'audit', label: 'Audit', icon: ClipboardList },
+];
+
 export default function AdminDashboard({ onClose }: { onClose?: () => void }) {
   const { token } = useAuth();
-  const [tab, setTab] = useState<'users' | 'plans' | 'content' | 'settings' | 'analytics' | 'audit'>('users');
+  const [tab, setTab] = useState<Tab>('users');
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState('');
@@ -79,592 +47,348 @@ export default function AdminDashboard({ onClose }: { onClose?: () => void }) {
   const [analytics, setAnalytics] = useState<unknown>(null);
   const [audit, setAudit] = useState<unknown[]>([]);
 
+  // Modal state
+  const [modal, setModal] = useState<{ type: 'setting' | 'plan' | 'content' | 'json'; item: unknown } | null>(null);
+  const [editValue, setEditValue] = useState('');
+
   const headers = useMemo(() => {
     if (!token) return null;
     return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
   }, [token]);
 
-  async function loadUsers(): Promise<void> {
-    if (!headers) return;
-    setBusy('users');
-    setErr('');
-    try {
-      const res = await fetch(`${API_BASE}/admin/users?q=${encodeURIComponent(q)}`, { headers });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Failed to load users');
-      }
-      setUsers((Array.isArray(data) ? data : []) as AdminUserDto[]);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load users');
-    } finally {
-      setBusy(null);
-    }
+  async function apiGet(path: string): Promise<unknown> {
+    if (!headers) throw new Error('Not authenticated');
+    const res = await fetch(`${API_BASE}${path}`, { headers });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data as Record<string, unknown>)?.error as string || 'Request failed');
+    return data;
   }
 
-  async function loadSettings(): Promise<void> {
-    if (!headers) return;
-    setBusy('settings');
-    setErr('');
-    try {
-      const res = await fetch(`${API_BASE}/admin/settings`, { headers });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Failed to load settings');
-      }
-      setSettings((Array.isArray(data) ? data : []) as AdminSettingDto[]);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load settings');
-    } finally {
-      setBusy(null);
-    }
+  async function apiPatch(path: string, body: unknown): Promise<unknown> {
+    if (!headers) throw new Error('Not authenticated');
+    const res = await fetch(`${API_BASE}${path}`, { method: 'PATCH', headers, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data as Record<string, unknown>)?.error as string || 'Request failed');
+    return data;
   }
 
-  async function loadContent(): Promise<void> {
-    if (!headers) return;
-    setBusy('content');
-    setErr('');
-    try {
-      const res = await fetch(`${API_BASE}/admin/content`, { headers });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Failed to load content');
-      }
-      setBlocks((Array.isArray(data) ? data : []) as ContentBlockDto[]);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load content');
-    } finally {
-      setBusy(null);
-    }
+  async function apiPost(path: string): Promise<unknown> {
+    if (!headers) throw new Error('Not authenticated');
+    const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data as Record<string, unknown>)?.error as string || 'Request failed');
+    return data;
   }
 
-  async function loadAudit(): Promise<void> {
+  async function loadTab(t: Tab): Promise<void> {
     if (!headers) return;
-    setBusy('audit');
-    setErr('');
+    setBusy(t); setErr('');
     try {
-      const res = await fetch(`${API_BASE}/admin/audit`, { headers });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Failed to load audit');
-      }
-      setAudit((Array.isArray(data) ? data : []) as unknown[]);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load audit');
-    } finally {
-      setBusy(null);
-    }
+      const data = await apiGet(`/admin/${t === 'audit' ? 'audit' : t === 'analytics' ? 'analytics' : t}`);
+      if (t === 'users') setUsers(Array.isArray(data) ? data as AdminUserDto[] : (data as Record<string, unknown>)?.users as AdminUserDto[] || []);
+      else if (t === 'settings') setSettings(Array.isArray(data) ? data as AdminSettingDto[] : []);
+      else if (t === 'plans') setPlans(Array.isArray(data) ? data as PlanDto[] : []);
+      else if (t === 'content') setBlocks(Array.isArray(data) ? data as ContentBlockDto[] : []);
+      else if (t === 'analytics') setAnalytics(data);
+      else if (t === 'audit') setAudit(Array.isArray(data) ? data as unknown[] : (data as Record<string, unknown>)?.items as unknown[] || []);
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(null); }
   }
 
-  async function loadPlans(): Promise<void> {
-    if (!headers) return;
-    setBusy('plans');
-    setErr('');
-    try {
-      const res = await fetch(`${API_BASE}/admin/plans`, { headers });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Failed to load plans');
-      }
-      setPlans((Array.isArray(data) ? data : []) as PlanDto[]);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load plans');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function loadAnalytics(): Promise<void> {
-    if (!headers) return;
-    setBusy('analytics');
-    setErr('');
-    try {
-      const res = await fetch(`${API_BASE}/admin/analytics`, { headers });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Failed to load analytics');
-      }
-      setAnalytics(data);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Failed to load analytics');
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  useEffect(() => {
-    if (tab === 'users') void loadUsers();
-    if (tab === 'plans') void loadPlans();
-    if (tab === 'settings') void loadSettings();
-    if (tab === 'analytics') void loadAnalytics();
-    if (tab === 'content') void loadContent();
-    if (tab === 'audit') void loadAudit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  useEffect(() => { void loadTab(tab); }, [tab]);
 
   async function setUserPlan(userId: string, plan: 'free' | 'pro') {
     if (!headers) return;
-    setBusy(`plan:${userId}`);
-    setErr('');
+    setBusy(`plan:${userId}`); setErr('');
     try {
-      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ plan }),
-      });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Update failed');
-      }
-      setUsers((prev) =>
-        prev.map((u) => (u._id === userId ? (data as AdminUserDto) : u))
-      );
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Update failed');
-    } finally {
-      setBusy(null);
-    }
+      const data = await apiPatch(`/admin/users/${userId}`, { plan }) as AdminUserDto;
+      setUsers(prev => prev.map(u => u._id === userId ? data : u));
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(null); }
   }
 
-  async function editSetting(item: AdminSettingDto): Promise<void> {
-    if (!headers) return;
-    const raw = window.prompt(
-      `Éditer ${item.key} (${item.type})`,
-      item.type === 'string' ? String(item.value ?? '') : pretty(item.value)
-    );
-    if (raw == null) return;
-    let value: unknown;
-    try {
-      value = parseByType(item.type, raw);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Valeur invalide');
-      return;
-    }
-    setBusy(`setting:${item.key}`);
-    setErr('');
-    try {
-      const res = await fetch(`${API_BASE}/admin/settings/${encodeURIComponent(item.key)}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ type: item.type, value }),
-      });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Échec mise à jour setting');
-      }
-      await loadSettings();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Échec mise à jour setting');
-    } finally {
-      setBusy(null);
-    }
+  function openEditSetting(item: AdminSettingDto) {
+    setEditValue(item.type === 'string' ? String(item.value ?? '') : pretty(item.value));
+    setModal({ type: 'setting', item });
   }
 
-  async function editPlan(plan: PlanDto): Promise<void> {
-    if (!headers) return;
-    const initial = pretty({
-      name: plan.name || plan.code,
-      description: plan.description || '',
-      price_monthly: plan.price_monthly ?? 0,
-      currency: plan.currency || 'TND',
-      is_public: plan.is_public ?? true,
-      features: plan.features || [],
-      limits: plan.limits || {},
-    });
-    const raw = window.prompt(`Éditer plan ${plan.code} (JSON)`, initial);
-    if (raw == null) return;
-    let payload: Record<string, unknown>;
+  async function saveSetting() {
+    if (!modal || !headers) return;
+    const item = modal.item as AdminSettingDto;
+    setBusy(`setting:${item.key}`); setErr(''); setModal(null);
     try {
-      payload = JSON.parse(raw) as Record<string, unknown>;
-    } catch {
-      setErr('JSON invalide pour le plan');
-      return;
-    }
-    setBusy(`planedit:${plan.code}`);
-    setErr('');
-    try {
-      const res = await fetch(`${API_BASE}/admin/plans/${encodeURIComponent(plan.code)}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify(payload),
-      });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Échec mise à jour plan');
-      }
-      await loadPlans();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Échec mise à jour plan');
-    } finally {
-      setBusy(null);
-    }
+      const value = parseByType(item.type, editValue);
+      await apiPatch(`/admin/settings/${encodeURIComponent(item.key)}`, { type: item.type, value });
+      await loadTab('settings');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(null); }
   }
 
-  async function editContentBlock(block: ContentBlockDto): Promise<void> {
-    if (!headers) return;
-    const raw = window.prompt(
-      `Éditer draft ${block.key} (JSON)`,
-      pretty(block.content ?? {})
-    );
-    if (raw == null) return;
-    let content: unknown;
-    try {
-      content = JSON.parse(raw) as unknown;
-    } catch {
-      setErr('JSON invalide pour le contenu');
-      return;
-    }
-    setBusy(`content:${block.key}`);
-    setErr('');
-    try {
-      const res = await fetch(`${API_BASE}/admin/content/${encodeURIComponent(block.key)}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ content }),
-      });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Échec mise à jour contenu');
-      }
-      await loadContent();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Échec mise à jour contenu');
-    } finally {
-      setBusy(null);
-    }
+  function openEditPlan(item: PlanDto) {
+    setEditValue(pretty({ name: item.name || item.code, description: item.description || '', price_monthly: item.price_monthly ?? 0, currency: item.currency || 'TND', is_public: item.is_public ?? true, features: item.features || [], limits: item.limits || {} }));
+    setModal({ type: 'plan', item });
   }
 
-  async function publishContentBlock(key: string): Promise<void> {
-    if (!headers) return;
-    if (!window.confirm(`Publier le bloc ${key} ?`)) return;
-    setBusy(`publish:${key}`);
-    setErr('');
+  async function savePlan() {
+    if (!modal || !headers) return;
+    const item = modal.item as PlanDto;
+    setBusy(`plan:${item.code}`); setErr(''); setModal(null);
     try {
-      const res = await fetch(`${API_BASE}/admin/content/${encodeURIComponent(key)}/publish`, {
-        method: 'POST',
-        headers,
-      });
-      const data = (await res.json().catch(() => null)) as unknown;
-      if (!res.ok) {
-        const o = (data ?? {}) as Record<string, unknown>;
-        throw new Error(typeof o.error === 'string' ? o.error : 'Échec publication');
-      }
-      await loadContent();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Échec publication');
-    } finally {
-      setBusy(null);
-    }
+      await apiPatch(`/admin/plans/${encodeURIComponent(item.code)}`, JSON.parse(editValue) as Record<string, unknown>);
+      await loadTab('plans');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(null); }
+  }
+
+  function openEditContent(item: ContentBlockDto) {
+    setEditValue(pretty(item.content ?? {}));
+    setModal({ type: 'content', item });
+  }
+
+  async function saveContent() {
+    if (!modal || !headers) return;
+    const item = modal.item as ContentBlockDto;
+    setBusy(`content:${item.key}`); setErr(''); setModal(null);
+    try {
+      await apiPatch(`/admin/content/${encodeURIComponent(item.key)}`, { content: JSON.parse(editValue) as unknown });
+      await loadTab('content');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(null); }
+  }
+
+  async function publishContent(key: string) {
+    if (!headers) return;
+    setBusy(`publish:${key}`); setErr('');
+    try {
+      await apiPost(`/admin/content/${encodeURIComponent(key)}/publish`);
+      await loadTab('content');
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Erreur'); }
+    finally { setBusy(null); }
   }
 
   if (!token) return null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Admin</h2>
-          <p className="text-xs text-gray-500">
-            Gestion utilisateurs, contenu, paramètres et audit.
-          </p>
+    <>
+      <div className="space-y-6 pb-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-900 dark:text-gray-100">Administration</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestion des utilisateurs, plans, contenu et paramètres</p>
+          </div>
+          {onClose && <button onClick={onClose} className="btn-ghost">Retour</button>}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-sm font-medium text-gray-600 hover:text-gray-900"
-        >
-          Fermer
-        </button>
-      </div>
 
-      <div className="px-5 pt-4 flex flex-wrap gap-2">
-        {(['users', 'plans', 'content', 'settings', 'analytics', 'audit'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`px-3 py-1.5 rounded-full text-sm border ${
-              tab === t ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            {t === 'users'
-              ? 'Utilisateurs'
-              : t === 'plans'
-                ? 'Plans'
-              : t === 'content'
-                ? 'Contenu'
-                : t === 'settings'
-                  ? 'Paramètres'
-                  : t === 'analytics'
-                    ? 'Analytics'
-                  : 'Audit'}
-          </button>
-        ))}
-      </div>
-
-      {err ? (
-        <div className="mx-5 mt-4 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
-          {err}
+        {/* Tabs */}
+        <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-x-auto">
+          {TABS.map(t => {
+            const Icon = t.icon;
+            const isActive = tab === t.id;
+            return (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${isActive ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+                <Icon className="w-4 h-4" />{t.label}
+              </button>
+            );
+          })}
         </div>
-      ) : null}
 
-      <div className="p-5 space-y-4">
-        {tab === 'users' ? (
-          <>
-            <div className="flex flex-wrap gap-2 items-center">
-              <input
-                className="flex-1 min-w-[220px] rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Rechercher par email…"
-              />
-              <button
-                type="button"
-                onClick={() => void loadUsers()}
-                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-                disabled={busy === 'users'}
-              >
-                {busy === 'users' ? 'Chargement…' : 'Recharger'}
+        {err && (
+          <div className="card p-4 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-sm text-red-800 dark:text-red-300">{err}</div>
+        )}
+
+        {tab === 'users' && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="flex gap-2">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
+                <input className="input-field pl-9" value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher par email…" />
+              </div>
+              <button onClick={() => void loadTab('users')} disabled={busy === 'users'} className="btn-secondary">
+                {busy === 'users' ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Recharger
               </button>
             </div>
-            <div className="overflow-auto border rounded-xl">
-              <table className="min-w-[760px] w-full text-sm">
-                <thead className="bg-gray-50 text-gray-700">
-                  <tr>
-                    <th className="text-left p-3">Email</th>
-                    <th className="text-left p-3">Nom</th>
-                    <th className="text-left p-3">Rôle</th>
-                    <th className="text-left p-3">Plan</th>
-                    <th className="text-left p-3">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((u) => (
-                    <tr key={u._id} className="border-t">
-                      <td className="p-3">{u.email}</td>
-                      <td className="p-3">{u.name || '—'}</td>
-                      <td className="p-3">{u.role || 'user'}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${u.plan === 'pro' ? 'bg-violet-100 text-violet-800' : 'bg-gray-200 text-gray-700'}`}>
-                          {u.plan === 'pro' ? 'Pro' : 'Free'}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          onClick={() => void setUserPlan(u._id, u.plan === 'pro' ? 'free' : 'pro')}
-                          className="text-indigo-700 hover:text-indigo-900 font-medium"
-                          disabled={busy === `plan:${u._id}`}
-                        >
-                          {busy === `plan:${u._id}` ? '…' : u.plan === 'pro' ? 'Passer Free' : 'Passer Pro'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {!users.length ? (
-                    <tr>
-                      <td className="p-3 text-gray-500" colSpan={5}>
-                        Aucun résultat.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wider">
+                    <th className="text-left p-4 pl-5 font-medium">Email</th>
+                    <th className="text-left p-4 font-medium">Nom</th>
+                    <th className="text-left p-4 font-medium">Rôle</th>
+                    <th className="text-left p-4 font-medium">Plan</th>
+                    <th className="text-right p-4 pr-5 font-medium">Action</th>
+                  </tr></thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u._id} className="border-t border-gray-50 dark:border-gray-700/50 hover:bg-gray-50/50 dark:hover:bg-gray-700/30">
+                        <td className="p-4 pl-5 font-medium text-gray-900 dark:text-gray-100">{u.email}</td>
+                        <td className="p-4 text-gray-600 dark:text-gray-400">{u.name || '—'}</td>
+                        <td className="p-4"><span className="badge text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">{u.role || 'user'}</span></td>
+                        <td className="p-4">
+                          <span className={`badge text-[10px] ${u.plan === 'pro' ? 'badge-pro' : 'badge-free'}`}>{u.plan === 'pro' ? 'Pro' : 'Free'}</span>
+                        </td>
+                        <td className="p-4 pr-5 text-right">
+                          <button onClick={() => void setUserPlan(u._id, u.plan === 'pro' ? 'free' : 'pro')}
+                            disabled={busy === `plan:${u._id}`}
+                            className="btn-ghost text-xs disabled:opacity-50">
+                            {busy === `plan:${u._id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : u.plan === 'pro' ? '→ Free' : '→ Pro'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {users.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm">Aucun utilisateur</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </>
-        ) : null}
+          </div>
+        )}
 
-        {tab === 'settings' ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Paramètres</h3>
-              <button
-                type="button"
-                onClick={() => void loadSettings()}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50"
-                disabled={busy === 'settings'}
-              >
-                {busy === 'settings' ? 'Chargement…' : 'Recharger'}
+        {tab === 'settings' && (
+          <div className="animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="section-title">Paramètres</h3>
+              <button onClick={() => void loadTab('settings')} disabled={busy === 'settings'} className="btn-ghost text-xs">
+                {busy === 'settings' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Recharger'}
               </button>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {settings.map((s) => (
-                <div key={s.key} className="border rounded-xl p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-gray-900">{s.key}</div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-xs text-gray-500">{s.type}</div>
-                      <button
-                        type="button"
-                        onClick={() => void editSetting(s)}
-                        className="text-xs font-medium text-indigo-700 hover:text-indigo-900"
-                        disabled={busy === `setting:${s.key}`}
-                      >
-                        {busy === `setting:${s.key}` ? '…' : 'Éditer'}
-                      </button>
-                    </div>
+              {settings.map(s => (
+                <div key={s.key} className="card p-4 cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-700" onClick={() => openEditSetting(s)}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{s.key}</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">{s.type}</span>
                   </div>
-                  <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-auto max-h-48">
-                    {pretty(s.value)}
-                  </pre>
+                  <pre className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-2 rounded max-h-32 overflow-auto">{pretty(s.value)}</pre>
                 </div>
               ))}
-              {!settings.length ? <div className="text-sm text-gray-500">Aucun paramètre.</div> : null}
+              {settings.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">Aucun paramètre.</p>}
             </div>
           </div>
-        ) : null}
+        )}
 
-        {tab === 'plans' ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Plans & entitlements</h3>
-              <button
-                type="button"
-                onClick={() => void loadPlans()}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50"
-                disabled={busy === 'plans'}
-              >
-                {busy === 'plans' ? 'Chargement…' : 'Recharger'}
+        {tab === 'plans' && (
+          <div className="animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="section-title">Plans</h3>
+              <button onClick={() => void loadTab('plans')} disabled={busy === 'plans'} className="btn-ghost text-xs">
+                {busy === 'plans' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Recharger'}
               </button>
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              {plans.map((p) => (
-                <div key={p.code} className="border rounded-xl p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium text-gray-900">{p.name || p.code}</div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-xs text-gray-500">{p.code}</div>
-                      <button
-                        type="button"
-                        onClick={() => void editPlan(p)}
-                        className="text-xs font-medium text-indigo-700 hover:text-indigo-900"
-                        disabled={busy === `planedit:${p.code}`}
-                      >
-                        {busy === `planedit:${p.code}` ? '…' : 'Éditer'}
-                      </button>
-                    </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {plans.map(p => (
+                <div key={p.code} className={`card p-5 cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-700 ${p.code === 'pro' ? 'ring-1 ring-indigo-200 dark:ring-indigo-700' : ''}`} onClick={() => openEditPlan(p)}>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-bold text-gray-900 dark:text-gray-100">{p.name || p.code}</h3>
+                    <span className="badge text-[10px] bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">{p.code}</span>
                   </div>
-                  <div className="mt-1 text-sm text-gray-700">
-                    {(p.price_monthly ?? 0).toString()} {p.currency || 'TND'} / mois
-                  </div>
-                  <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-auto max-h-52">
-                    {pretty({ features: p.features || [], limits: p.limits || {} })}
-                  </pre>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{p.price_monthly || 0} {p.currency || 'TND'}/mois</p>
+                  {p.features && p.features.length > 0 && (
+                    <ul className="space-y-1">
+                      {p.features.slice(0, 4).map((f, i) => (
+                        <li key={`feat-${i}`} className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+                          <Check className="w-3 h-3 text-emerald-500 flex-shrink-0" />{f}
+                        </li>
+                      ))}
+                      {p.features.length > 4 && <li className="text-xs text-gray-400 dark:text-gray-500">+{p.features.length - 4} autres</li>}
+                    </ul>
+                  )}
                 </div>
               ))}
-              {!plans.length ? <div className="text-sm text-gray-500">Aucun plan défini.</div> : null}
             </div>
           </div>
-        ) : null}
+        )}
 
-        {tab === 'content' ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Contenu</h3>
-              <button
-                type="button"
-                onClick={() => void loadContent()}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50"
-                disabled={busy === 'content'}
-              >
-                {busy === 'content' ? 'Chargement…' : 'Recharger'}
+        {tab === 'content' && (
+          <div className="animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="section-title">Contenu</h3>
+              <button onClick={() => void loadTab('content')} disabled={busy === 'content'} className="btn-ghost text-xs">
+                {busy === 'content' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Recharger'}
               </button>
             </div>
             <div className="space-y-3">
-              {blocks.map((b) => (
-                <details key={b.key} className="border rounded-xl p-3">
-                  <summary className="cursor-pointer font-medium text-gray-900 flex items-center justify-between">
-                    <span>{b.key}</span>
-                    <span className="text-xs text-gray-500">{b.status || 'draft'}</span>
-                  </summary>
-                  <div className="mt-2 flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void editContentBlock(b)}
-                      className="text-xs font-medium text-indigo-700 hover:text-indigo-900"
-                      disabled={busy === `content:${b.key}`}
-                    >
-                      {busy === `content:${b.key}` ? '…' : 'Éditer draft'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void publishContentBlock(b.key)}
-                      className="text-xs font-medium text-emerald-700 hover:text-emerald-900"
-                      disabled={busy === `publish:${b.key}`}
-                    >
-                      {busy === `publish:${b.key}` ? '…' : 'Publier'}
-                    </button>
-                  </div>
-                  <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-xs font-semibold text-gray-600">Draft</div>
-                      <pre className="mt-1 text-xs bg-gray-50 p-2 rounded overflow-auto max-h-64">
-                        {pretty(b.content)}
-                      </pre>
+              {blocks.map(b => (
+                <div key={b.key} className="card p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{b.key}</span>
+                      <span className={`badge text-[10px] ${b.status === 'published' ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`}>
+                        {b.status === 'published' ? 'Publié' : 'Brouillon'}
+                      </span>
                     </div>
-                    <div>
-                      <div className="text-xs font-semibold text-gray-600">Published</div>
-                      <pre className="mt-1 text-xs bg-gray-50 p-2 rounded overflow-auto max-h-64">
-                        {pretty(b.published_content)}
-                      </pre>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => openEditContent(b)} className="btn-ghost text-xs">Éditer</button>
+                      <button onClick={() => void publishContent(b.key)} disabled={busy === `publish:${b.key}`}
+                        className="btn-ghost text-xs text-emerald-700 dark:text-emerald-400 hover:text-emerald-900 dark:hover:text-emerald-300 disabled:opacity-50">
+                        {busy === `publish:${b.key}` ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Publier'}
+                      </button>
                     </div>
                   </div>
-                </details>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase mb-1">Brouillon</p>
+                      <pre className="text-xs bg-gray-50 dark:bg-gray-800/50 p-3 rounded max-h-40 overflow-auto">{pretty(b.content)}</pre>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 uppercase mb-1">Publié</p>
+                      <pre className="text-xs bg-gray-50 dark:bg-gray-800/50 p-3 rounded max-h-40 overflow-auto">{pretty(b.published_content)}</pre>
+                    </div>
+                  </div>
+                </div>
               ))}
-              {!blocks.length ? <div className="text-sm text-gray-500">Aucun bloc.</div> : null}
+              {blocks.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">Aucun bloc.</p>}
             </div>
           </div>
-        ) : null}
+        )}
 
-        {tab === 'analytics' ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Analytics</h3>
-              <button
-                type="button"
-                onClick={() => void loadAnalytics()}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50"
-                disabled={busy === 'analytics'}
-              >
-                {busy === 'analytics' ? 'Chargement…' : 'Recharger'}
+        {tab === 'analytics' && (
+          <div className="animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="section-title">Analytiques</h3>
+              <button onClick={() => void loadTab('analytics')} disabled={busy === 'analytics'} className="btn-ghost text-xs">
+                {busy === 'analytics' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Recharger'}
               </button>
             </div>
-            <pre className="text-xs bg-gray-50 p-3 rounded overflow-auto max-h-[420px]">
-              {pretty(analytics)}
-            </pre>
+            <pre className="card p-5 text-xs font-mono overflow-auto max-h-[500px]">{pretty(analytics)}</pre>
           </div>
-        ) : null}
+        )}
 
-        {tab === 'audit' ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-gray-900">Audit (200 derniers)</h3>
-              <button
-                type="button"
-                onClick={() => void loadAudit()}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50"
-                disabled={busy === 'audit'}
-              >
-                {busy === 'audit' ? 'Chargement…' : 'Recharger'}
+        {tab === 'audit' && (
+          <div className="animate-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="section-title">Audit (200 derniers)</h3>
+              <button onClick={() => void loadTab('audit')} disabled={busy === 'audit'} className="btn-ghost text-xs">
+                {busy === 'audit' ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Recharger'}
               </button>
             </div>
-            <pre className="text-xs bg-gray-50 p-3 rounded overflow-auto max-h-[420px]">
-              {pretty(audit)}
-            </pre>
+            <pre className="card p-5 text-xs font-mono overflow-auto max-h-[500px]">{pretty(audit)}</pre>
           </div>
-        ) : null}
+        )}
       </div>
-    </div>
+
+      {/* Edit Modal */}
+      <Modal open={!!modal} onClose={() => setModal(null)}
+        title={modal?.type === 'setting' ? `Paramètre : ${(modal.item as AdminSettingDto).key}`
+          : modal?.type === 'plan' ? `Plan : ${(modal.item as PlanDto).code}`
+          : modal?.type === 'content' ? `Contenu : ${(modal.item as ContentBlockDto).key}`
+          : 'Éditeur'}>
+        <div className="space-y-4">
+          <textarea className="input-field font-mono text-xs min-h-[200px]" value={editValue} onChange={e => setEditValue(e.target.value)} />
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setModal(null)} className="btn-secondary">Annuler</button>
+            <button onClick={() => {
+              if (modal?.type === 'setting') void saveSetting();
+              else if (modal?.type === 'plan') void savePlan();
+              else if (modal?.type === 'content') void saveContent();
+            }} className="btn-primary">
+              <Check className="w-4 h-4" />
+              Enregistrer
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </>
   );
 }
-
