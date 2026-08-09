@@ -1,7 +1,7 @@
 import { Schema, model } from 'mongoose';
 
 const SubscriptionSchema = new Schema({
-  user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  user_id: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   provider: { type: String, default: 'manual' },
   provider_customer_id: { type: String, default: null },
   provider_subscription_id: { type: String, default: null },
@@ -17,6 +17,9 @@ const SubscriptionSchema = new Schema({
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
 });
+
+SubscriptionSchema.index({ provider_subscription_id: 1 }, { sparse: true });
+SubscriptionSchema.index({ user_id: 1, status: 1 });
 
 export default model('Subscription', SubscriptionSchema);
 

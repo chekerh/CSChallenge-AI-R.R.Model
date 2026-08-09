@@ -42,7 +42,7 @@ export function currentPeriodKey(now = new Date()): string {
 export async function resolveEffectivePlan(userId: string): Promise<UserPlan> {
   const activeSub = await Subscription.findOne({
     user_id: userId,
-    status: { $in: ['trialing', 'active'] },
+    status: { $in: ['trialing', 'active', 'past_due'] },
   })
     .sort({ updated_at: -1 })
     .select('plan_code')
@@ -83,23 +83,29 @@ export async function consumeQuota(userId: string, key: QuotaKey): Promise<{ all
   if (limit <= 0) return { allowed: false, remaining: 0, limit };
 
   const period = currentPeriodKey();
-  const existing = await UsageCounter.findOne({ user_id: userId, period_key: period }).lean();
-  const current = Number(
-    ((existing as { counters?: Record<string, unknown> } | null)?.counters || {})[key] || 0
-  );
-  if (current >= limit) {
-    return { allowed: false, remaining: 0, limit };
-  }
 
-  const next = current + 1;
-  await UsageCounter.findOneAndUpdate(
+  // Optimistic lock-free atomic increment using Mongo $inc
+  const result = await UsageCounter.findOneAndUpdate(
     { user_id: userId, period_key: period },
     {
       $setOnInsert: { user_id: userId, period_key: period, created_at: new Date() },
-      $set: { [`counters.${key}`]: next, updated_at: new Date() },
+      $inc: { [`counters.${key}`]: 1 },
+      $set: { updated_at: new Date() },
     },
-    { upsert: true, new: true }
+    { upsert: true, new: true, lean: true }
   );
-  return { allowed: true, remaining: Math.max(limit - next, 0), limit };
+
+  const current = Number((result as { counters?: Record<string, unknown> } | null)?.counters?.[key] || 0);
+
+  if (current > limit) {
+    // Exceeded! Rollback the increment atomically
+    await UsageCounter.updateOne(
+      { user_id: userId, period_key: period },
+      { $inc: { [`counters.${key}`]: -1 } }
+    );
+    return { allowed: false, remaining: 0, limit };
+  }
+
+  return { allowed: true, remaining: Math.max(limit - current, 0), limit };
 }
 
