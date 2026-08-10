@@ -2,6 +2,9 @@ import pino from 'pino';
 import SystemError from '../models/SystemError';
 import Incident, { type IncidentSeverity, type IncidentSource } from '../models/Incident';
 import SelfHealAction from '../models/SelfHealAction';
+import AdminSetting from '../models/AdminSetting';
+import { sendAdminAlertEmail } from './emailService';
+import { getResendApiKey } from '../config/env';
 import {
   getBreaker,
   setBreaker,
@@ -117,7 +120,6 @@ function recommendForSignature(signature: string): string {
 export async function runDetectionCycle(): Promise<void> {
   const since = new Date(Date.now() - CONFIG.windowMs);
   const minutes = CONFIG.windowMs / 60000;
-
   const [errorCount, bySignature, authErrors, openaiErrors] = await Promise.all([
     SystemError.countDocuments({ created_at: { $gte: since } }),
     SystemError.aggregate<{ _id: string; n: number }>([
@@ -195,6 +197,59 @@ export async function runDetectionCycle(): Promise<void> {
         detail: `Circuit breaker OpenAI ouvert après ${state.consecutive_failures} échecs consécutifs (cooldown ${5} min).`,
         metadata: { consecutive_failures: state.consecutive_failures },
       });
+    }
+  }
+
+  await dispatchAlerts();
+}
+
+async function getAlertConfig(): Promise<{ enabled: boolean; email: string }> {
+  const [enabledDoc, emailDoc] = await Promise.all([
+    AdminSetting.findOne({ key: 'monitor.alert_enabled' }).lean(),
+    AdminSetting.findOne({ key: 'monitor.alert_email' }).lean(),
+  ]);
+  return {
+    enabled: Boolean((enabledDoc as { value?: unknown } | null)?.value),
+    email: String((emailDoc as { value?: unknown } | null)?.value || '').trim(),
+  };
+}
+
+export async function getAlertSettings(): Promise<{ enabled: boolean; email: string }> {
+  return getAlertConfig();
+}
+
+export async function dispatchAlerts(): Promise<void> {
+  if (process.env.NODE_ENV === 'test') return;
+  if (getResendApiKey() === 're_placeholder') return;
+
+  const cfg = await getAlertConfig();
+  if (!cfg.enabled || !cfg.email) return;
+
+  const criticals = await Incident.find({ status: 'open', severity: 'critical', alert_sent_at: null })
+    .sort({ last_seen_at: -1 })
+    .limit(5)
+    .lean();
+
+  for (const inc of criticals) {
+    try {
+      await sendAdminAlertEmail({
+        to: cfg.email,
+        title: inc.title,
+        summary: inc.summary || `Incident « ${inc.title} » détecté automatiquement.`,
+        severity: 'critical',
+        source: inc.source,
+        incidentId: String(inc._id),
+        recommendedAction: inc.recommended_action,
+      });
+      await Incident.updateOne({ _id: inc._id }, { $set: { alert_sent_at: new Date() } });
+      await SelfHealAction.create({
+        incident_id: inc._id,
+        action: 'admin_alert_email',
+        status: 'success',
+        detail: `Alerte critique envoyée à ${cfg.email}.`,
+      });
+    } catch (err) {
+      log.error({ err, incidentId: String(inc._id) }, 'failed to dispatch admin alert email');
     }
   }
 }
@@ -288,6 +343,8 @@ export async function runSelfHealCycle(): Promise<void> {
       detail: 'Cooldown écoulé : le prochain appel IA servira de test de récupération.',
     });
   }
+
+  await dispatchAlerts();
 }
 
 let workerTimer: ReturnType<typeof setInterval> | null = null;

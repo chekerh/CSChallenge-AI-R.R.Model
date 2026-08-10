@@ -12,7 +12,7 @@ import Incident from '../models/Incident';
 import SelfHealAction from '../models/SelfHealAction';
 import { requireAuth } from '../middleware/authMiddleware';
 import { requireRole, type AppRole } from '../middleware/requireRole';
-import { getWorkerStatus, runManualHealCycle } from '../services/monitoring';
+import { getWorkerStatus, runManualHealCycle, getAlertSettings } from '../services/monitoring';
 import pino from 'pino';
 
 const log = pino({ name: 'admin' });
@@ -358,6 +358,7 @@ async function monitoringOverview() {
     recent_incidents: recentIncidents,
     recent_errors: recentErrors,
     worker: getWorkerStatus(),
+    alerts: await getAlertSettings(),
   };
 }
 
