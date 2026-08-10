@@ -18,12 +18,12 @@ AI-powered resume review, CV building, and job-search automation for Tunisian/in
 | LinkedIn: OAuth, posts, scheduler, comments | #6 | ✅ merged |
 | Landing page (framer-motion, FR) + route restructure | #7 | ✅ merged |
 | Enterprise monitoring + self-healing (admin) | #7 | ✅ merged |
-| Admin incident alerts (email via Resend) | #8 | 🔵 in flight |
-| In-app notification system (bell, polling) | #9 | 🔵 in flight |
-| E2E smoke tests (Playwright) + SEO/meta polish | #10 | ⬜ planned |
-| AI cache/dedup layer + OpenAI cost guard | #11 | ⬜ planned |
-| i18n EN/FR toggle | #12 | ⬜ planned |
-| Onboarding flow + UX polish | #13 | ⬜ planned |
+| Admin incident alerts (email via Resend) | #8 | ✅ merged |
+| In-app notification system (bell, polling) | #9 | ✅ merged |
+| E2E smoke tests (Playwright) + SEO/meta polish | #10 | ✅ merged |
+| AI cache/dedup layer + OpenAI cost guard | #11 | ✅ merged |
+| i18n EN/FR toggle | #12 | ✅ merged |
+| Onboarding flow + UX polish | #13 | ✅ merged |
 | Social auth (Google/LinkedIn OAuth) | #14 | ⬜ planned |
 
 ## Active Milestone — #7: Landing + Monitoring
@@ -72,7 +72,9 @@ Landing page and enterprise monitoring/self-heal shipped together (already imple
 - Lightweight dictionary approach; language toggle persisted; default FR
 
 ### #13 — Onboarding flow
-- Guided first-run: upload CV → diagnosis → next steps checklist
+- [x] `OnboardingChecklist` component (steps: CV → diagnostic → agent → profil) on dashboard overview
+- [x] Auto-completion CV/diagnostic depuis les données utilisateur; progression + dismiss persistés (localStorage)
+- [x] Traduit FR/EN (clés ajoutées à `translations.ts`)
 
 ### #14 — Social auth
 - Google OAuth (and LinkedIn) with account linking
