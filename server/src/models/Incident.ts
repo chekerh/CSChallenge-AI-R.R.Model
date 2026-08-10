@@ -23,6 +23,7 @@ const IncidentSchema = new Schema({
   resolved_at: { type: Date },
   resolved_by: { type: String, enum: ['system', 'admin', 'manual'] },
   resolved_by_user: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+  alert_sent_at: { type: Date },
 });
 
 IncidentSchema.index({ status: 1, last_seen_at: -1 });

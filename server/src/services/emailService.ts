@@ -4,6 +4,63 @@ import { getResendApiKey } from '../config/env';
 const resend = new Resend(getResendApiKey());
 const FROM_EMAIL = process.env.FROM_EMAIL || 'UtopiaHire <onboarding@resend.dev>';
 
+const BRAND = {
+  indigo: '#4f46e5',
+  red: '#dc2626',
+  amber: '#d97706',
+  gray: '#6b7280',
+};
+
+export async function sendAdminAlertEmail(opts: {
+  to: string;
+  title: string;
+  summary: string;
+  severity: 'info' | 'warning' | 'critical';
+  source: string;
+  incidentId: string;
+  recommendedAction?: string;
+  dashboardUrl?: string;
+}) {
+  const color = opts.severity === 'critical' ? BRAND.red : opts.severity === 'warning' ? BRAND.amber : BRAND.gray;
+  const severityLabel =
+    opts.severity === 'critical' ? 'CRITIQUE' : opts.severity === 'warning' ? 'ATTENTION' : 'INFO';
+  const dashboard = opts.dashboardUrl || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin`;
+
+  await resend.emails.send({
+    from: FROM_EMAIL,
+    to: opts.to,
+    subject: `[${severityLabel}] UtopiaHire — ${opts.title}`,
+    html: `
+      <div style="font-family: Inter, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="border-left: 4px solid ${color}; padding: 12px 16px; background-color: ${opts.severity === 'critical' ? '#fef2f2' : '#fffbeb'}; border-radius: 8px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 12px; font-weight: bold; letter-spacing: 0.05em; color: ${color}; text-transform: uppercase;">Alerte ${severityLabel.toLowerCase()}</p>
+          <h2 style="margin: 6px 0 0; color: #111827;">${opts.title}</h2>
+        </div>
+        <p style="color: #374151; line-height: 1.6;">${opts.summary}</p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin: 16px 0;">
+          <tr><td style="padding: 8px 0; color: #6b7280;">Source</td><td style="padding: 8px 0; font-weight: 600; color: #111827;">${opts.source}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Sévérité</td><td style="padding: 8px 0; font-weight: 600; color: ${color};">${severityLabel}</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280;">Incident</td><td style="padding: 8px 0; font-family: monospace; color: #111827;">${opts.incidentId}</td></tr>
+        </table>
+        ${opts.recommendedAction ? `
+          <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+            <p style="margin: 0 0 4px; font-size: 12px; font-weight: bold; color: #374151;">ACTION RECOMMANDÉE</p>
+            <p style="margin: 0; color: #374151; font-size: 14px;">${opts.recommendedAction}</p>
+          </div>
+        ` : ''}
+        <a href="${dashboard}" style="display: inline-block; background-color: ${BRAND.indigo}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0;">
+          Ouvrir le Monitoring
+        </a>
+        <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+        <p style="color: #9ca3af; font-size: 12px;">
+          Envoyé automatiquement par le système de supervision UtopiaHire.
+        </p>
+      </div>
+    `,
+  });
+  console.log(`Admin alert email sent to ${opts.to} (incident ${opts.incidentId})`);
+}
+
 export async function sendPasswordResetEmail(email: string, resetToken: string, userId: string) {
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
   

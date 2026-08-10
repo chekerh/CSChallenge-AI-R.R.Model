@@ -28,6 +28,7 @@ interface OverviewDto {
   recent_incidents: IncidentDto[];
   recent_errors: ErrorDto[];
   worker: WorkerStatus;
+  alerts?: { enabled: boolean; email: string };
 }
 
 interface EventDto { _id: string; event: string; props?: Record<string, unknown>; user_id?: string | null; created_at: string; }
@@ -236,6 +237,12 @@ export default function MonitoringPanel() {
           <span>Détection : {fmtDate(worker.last_detection)}</span>
           <span>Auto-réparation : {fmtDate(worker.last_self_heal)}</span>
           <span>Intervalle : {Math.round((worker.interval_ms || 60000) / 1000)}s</span>
+          {overview?.alerts && (
+            <span className={`inline-flex items-center gap-1.5 ${overview.alerts.enabled && overview.alerts.email ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+              <span className={`w-2 h-2 rounded-full ${overview.alerts.enabled && overview.alerts.email ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              Alertes e-mail : {overview.alerts.enabled && overview.alerts.email ? overview.alerts.email : 'non configurées'}
+            </span>
+          )}
         </div>
       )}
 
