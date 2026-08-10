@@ -1,0 +1,12 @@
+.git
+.gitignore
+*.md
+.env
+.env.*
+node_modules
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+**/coverage
+.dockerignore

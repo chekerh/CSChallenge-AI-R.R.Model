@@ -23,8 +23,8 @@ services:
   # Backend Server
   server:
     build:
-      context: ./server
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: server/Dockerfile
     container_name: utopiahire-server
     restart: unless-stopped
     ports:
@@ -59,8 +59,8 @@ services:
   # Frontend (Nginx)
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: utopiahire-frontend
     restart: unless-stopped
     ports:

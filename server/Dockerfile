@@ -1,20 +1,25 @@
-# Multi-stage build for UtopiaHire Server
+# Multi-stage build for UtopiaHire Server (npm workspace root context)
 FROM node:20-alpine AS base
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 
-# Dependencies
+# Dependencies (production only)
 FROM base AS deps
-COPY package.json ./
+COPY package.json package-lock.json* ./
+COPY shared/package.json shared/package.json
+COPY server/package.json server/package.json
+COPY frontend/package.json frontend/package.json
 RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 
-# Build
+# Build (full install incl. dev tooling)
 FROM base AS builder
 WORKDIR /app
-COPY package.json ./
+COPY package.json package-lock.json* ./
+COPY shared/ shared/
+COPY server/ server/
+COPY frontend/package.json frontend/package.json
 RUN npm install --no-audit --no-fund
-COPY . .
-RUN npm run build
+RUN npm run build:shared && npm run build:server
 
 # Production
 FROM base AS production
@@ -26,8 +31,9 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Copy built app and dependencies
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package.json ./
+COPY --from=builder /app/shared/dist ./shared/dist
+COPY --from=builder /app/server/dist ./dist
+COPY --from=builder /app/server/package.json ./
 
 # Set permissions
 RUN chown -R nodejs:nodejs /app
