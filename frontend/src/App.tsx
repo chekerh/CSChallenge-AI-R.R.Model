@@ -26,7 +26,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function LoginPage() {
+function LoginPage({ initialMode = 'login' }: { initialMode?: 'login' | 'signup' }) {
   const { setToken } = useAuth();
   const navigate = useNavigate();
   return (
@@ -39,7 +39,7 @@ function LoginPage() {
           <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">UtopiaHire</h1>
           <p className="mt-2 text-gray-500 dark:text-gray-400">IA au service de votre candidature</p>
         </div>
-        <AuthForm onAuth={(t) => { setToken(t); navigate('/dashboard'); }} />
+        <AuthForm onAuth={(t) => { setToken(t); navigate('/dashboard'); }} initialMode={initialMode} />
       </div>
     </div>
   );
@@ -135,6 +135,11 @@ function AppRoutes() {
       <Route path="/login" element={
         <Suspense fallback={<LoadingSpinner />}>
           <LoginPage />
+        </Suspense>
+      } />
+      <Route path="/register" element={
+        <Suspense fallback={<LoadingSpinner />}>
+          <LoginPage initialMode="signup" />
         </Suspense>
       } />
       <Route path="/reset-password" element={

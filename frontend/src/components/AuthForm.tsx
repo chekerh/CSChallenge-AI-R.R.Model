@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { User, Key, Mail, Loader2, Sparkles, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { api } from '../lib/client';
 
-export default function AuthForm({ onAuth }: { onAuth: (token: string) => void }) {
+export default function AuthForm({ onAuth, initialMode = 'login' }: { onAuth: (token: string) => void; initialMode?: 'login' | 'signup' }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(initialMode);
   const [status, setStatus] = useState('');
   const [statusType, setStatusType] = useState<'error' | 'success'>('error');
   const [isLoading, setIsLoading] = useState(false);
