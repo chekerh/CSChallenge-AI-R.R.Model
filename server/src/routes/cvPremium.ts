@@ -2,6 +2,7 @@ import express from 'express';
 import pino from 'pino';
 import { compileProfileToPlainText } from '@utopiahire/shared';
 import { requireAuth } from '../middleware/authMiddleware';
+import { aiErrorStatus } from '../openai';
 
 const log = pino({ name: 'cv-premium' });
 import {
@@ -87,6 +88,11 @@ router.post('/diagnosis', requireAuth, async (req, res) => {
       return;
     }
     const msg = e instanceof Error ? e.message : 'diagnosis failed';
+    const aiStatus = aiErrorStatus(e);
+    if (aiStatus) {
+      res.status(aiStatus).json({ error: msg });
+      return;
+    }
     if (msg.includes('OPENAI_API_KEY')) {
       res.status(503).json({ error: 'AI service not configured' });
       return;
@@ -140,6 +146,11 @@ router.post('/rewrite-section', requireAuth, async (req, res) => {
       return;
     }
     const msg = e instanceof Error ? e.message : 'rewrite failed';
+    const aiStatus = aiErrorStatus(e);
+    if (aiStatus) {
+      res.status(aiStatus).json({ error: msg });
+      return;
+    }
     if (msg.includes('OPENAI_API_KEY')) {
       res.status(503).json({ error: 'AI service not configured' });
       return;
@@ -193,6 +204,11 @@ router.post('/job-match', requireAuth, async (req, res) => {
       return;
     }
     const msg = e instanceof Error ? e.message : 'job match failed';
+    const aiStatus = aiErrorStatus(e);
+    if (aiStatus) {
+      res.status(aiStatus).json({ error: msg });
+      return;
+    }
     if (msg.includes('OPENAI_API_KEY')) {
       res.status(503).json({ error: 'AI service not configured' });
       return;

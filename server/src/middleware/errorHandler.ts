@@ -68,7 +68,11 @@ export function errorHandler(
             ? 409
             : err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError'
               ? 401
-              : 500,
+              : err.name === 'ServiceUnavailableError'
+                ? 503
+                : err.name === 'BudgetExceededError'
+                  ? 429
+                  : 500,
     name: err.name,
     message: err.message,
     code: (err as AppError).code,

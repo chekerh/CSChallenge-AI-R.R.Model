@@ -1,5 +1,7 @@
 import './config/env';
 import { isBreakerOpen, recordBreakerSuccess, recordBreakerFailure } from './services/circuitBreaker';
+import { cacheKeyFor, getCachedAi, storeCachedAi } from './services/aiCache';
+import { assertAiBudgetAvailable, recordAiUsage } from './services/aiCostGuard';
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -9,6 +11,13 @@ export class ServiceUnavailableError extends Error {
     super(message);
     this.name = 'ServiceUnavailableError';
   }
+}
+
+export function aiErrorStatus(e: unknown): number | null {
+  if (e instanceof Error && (e.name === 'ServiceUnavailableError' || e.name === 'BudgetExceededError')) {
+    return e.name === 'BudgetExceededError' ? 429 : 503;
+  }
+  return null;
 }
 
 async function assertOpenAIAvailable(): Promise<void> {
@@ -69,6 +78,15 @@ export async function analyzeResume(
     ? `Tailor suggestions for industry: ${opts.industry}.`
     : '';
   const prompt = `Analyze the following resume and provide structured suggestions for improvement: improvements in phrasing, metrics to add, section restructuring, and provide a rewritten improved version. ${industryHint} Return JSON with keys: industry, suggestions (array of {type, text}), improved_text.`;
+
+  const hash = cacheKeyFor({ model: OPENAI_MODEL, user: prompt + '\u0000' + text });
+  const cached = await getCachedAi(hash);
+  if (cached) {
+    await recordAiUsage({ tokensIn: 0, tokensOut: 0, cachedHit: true });
+    return { parsed: cached.parsed, raw: cached.raw, cached: true };
+  }
+
+  await assertAiBudgetAvailable();
   const resp = await openaiFetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -92,6 +110,7 @@ export async function analyzeResume(
   const data = (await resp.json()) as {
     choices?: Array<{ message?: { content?: string }; text?: string }>;
     error?: { message?: string };
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   if (!resp.ok) {
     const msg = data?.error?.message || resp.statusText;
@@ -111,7 +130,12 @@ export async function analyzeResume(
       ],
       improved_text: content,
     };
-  return { parsed, raw: content };
+  await recordAiUsage({
+    tokensIn: data?.usage?.prompt_tokens || 0,
+    tokensOut: data?.usage?.completion_tokens || 0,
+  });
+  await storeCachedAi(hash, OPENAI_MODEL, content, parsed);
+  return { parsed, raw: content, cached: false };
 }
 
 export async function openaiChatJson(input: {
@@ -119,8 +143,17 @@ export async function openaiChatJson(input: {
   user: string;
   maxTokens?: number;
   temperature?: number;
-}): Promise<{ parsed: unknown; raw: string }> {
+}): Promise<{ parsed: unknown; raw: string; cached?: boolean }> {
   if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY not configured');
+
+  const hash = cacheKeyFor({ model: OPENAI_MODEL, system: input.system, user: input.user });
+  const cached = await getCachedAi(hash);
+  if (cached) {
+    await recordAiUsage({ tokensIn: 0, tokensOut: 0, cachedHit: true });
+    return { parsed: cached.parsed, raw: cached.raw, cached: true };
+  }
+
+  await assertAiBudgetAvailable();
   const resp = await openaiFetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -140,6 +173,7 @@ export async function openaiChatJson(input: {
   const data = (await resp.json()) as {
     choices?: Array<{ message?: { content?: string }; text?: string }>;
     error?: { message?: string };
+    usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   if (!resp.ok) {
     const msg = data?.error?.message || resp.statusText;
@@ -148,5 +182,10 @@ export async function openaiChatJson(input: {
   const content =
     data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text || '';
   const parsed = tryParseJSONLike(content);
-  return { parsed: parsed ?? { _parse_error: true, raw: content }, raw: content };
+  await recordAiUsage({
+    tokensIn: data?.usage?.prompt_tokens || 0,
+    tokensOut: data?.usage?.completion_tokens || 0,
+  });
+  await storeCachedAi(hash, OPENAI_MODEL, content, parsed ?? { _parse_error: true, raw: content });
+  return { parsed: parsed ?? { _parse_error: true, raw: content }, raw: content, cached: false };
 }

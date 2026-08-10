@@ -6,7 +6,7 @@ import path from 'path';
 import pdfParse from 'pdf-parse';
 import mammoth from 'mammoth';
 import { Types } from 'mongoose';
-import { analyzeResume } from '../openai';
+import { analyzeResume, aiErrorStatus } from '../openai';
 import { requireAuth } from '../middleware/authMiddleware';
 import { consumeQuota, hasFeature } from '../billing/entitlements';
 import Resume from '../models/Resume';
@@ -341,6 +341,11 @@ router.post(
     } catch (err) {
       log.error({ err }, 'processing failed');
       const message = err instanceof Error ? err.message : 'processing failed';
+      const aiStatus = aiErrorStatus(err);
+      if (aiStatus) {
+        res.status(aiStatus).json({ error: message });
+        return;
+      }
       if (message.includes('OPENAI_API_KEY')) {
         res.status(503).json({ error: 'AI service not configured' });
         return;
@@ -437,6 +442,11 @@ router.post('/:resumeId/tailor', requireAuth, express.json(), async (req, res) =
     } catch (err) {
       log.error({ err }, 'tailor failed');
       const message = err instanceof Error ? err.message : 'tailor failed';
+    const aiStatus = aiErrorStatus(err);
+    if (aiStatus) {
+      res.status(aiStatus).json({ error: message });
+      return;
+    }
     if (message.includes('OPENAI_API_KEY')) {
       res.status(503).json({ error: 'AI service not configured' });
       return;
