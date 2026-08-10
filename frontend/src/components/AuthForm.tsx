@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { User, Key, Mail, Loader2, Sparkles, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { api } from '../lib/client';
+import { useLang } from '../i18n/LanguageContext';
 
 export default function AuthForm({ onAuth, initialMode = 'login' }: { onAuth: (token: string) => void; initialMode?: 'login' | 'signup' }) {
+  const { t } = useLang();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -89,7 +91,7 @@ export default function AuthForm({ onAuth, initialMode = 'login' }: { onAuth: (t
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
               <input id="email" type="email" required value={email} onChange={e => setEmail(e.target.value)}
-                className="input-field pl-10" placeholder="Adresse e-mail" autoComplete="email" disabled={mode === 'forgot' && isLoading} />
+                className="input-field pl-10" placeholder={t('auth.email')} autoComplete="email" disabled={mode === 'forgot' && isLoading} />
             </div>
           </div>
 
@@ -99,7 +101,7 @@ export default function AuthForm({ onAuth, initialMode = 'login' }: { onAuth: (t
               <div className="relative">
                 <Key className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
                 <input id="password" type={showPassword ? 'text' : 'password'} required value={password} onChange={e => setPassword(e.target.value)}
-                  className="input-field pl-10 pr-10" placeholder="Mot de passe"
+                  className="input-field pl-10 pr-10" placeholder={t('auth.password')}
                   autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)}
                   aria-label={showPassword ? 'Cacher le mot de passe' : 'Afficher le mot de passe'}
@@ -135,7 +137,7 @@ export default function AuthForm({ onAuth, initialMode = 'login' }: { onAuth: (t
             {isLoading ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> {mode === 'forgot' ? 'Envoi…' : 'Connexion…'}</>
             ) : mode === 'login' ? (
-              'Se connecter'
+              t('auth.login')
             ) : mode === 'signup' ? (
               'Créer mon compte'
             ) : (

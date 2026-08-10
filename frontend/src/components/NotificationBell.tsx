@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, ShieldAlert, CreditCard, Repeat, Briefcase, Info } from 'lucide-react';
 import { api } from '../lib/client';
+import { useLang } from '../i18n/LanguageContext';
 
 interface NotificationDto {
   _id: string;
@@ -29,10 +30,10 @@ const TYPE_COLOR = {
   system: 'text-gray-600 bg-gray-100 dark:text-gray-400 dark:bg-gray-800',
 };
 
-function timeAgo(iso: string): string {
+function timeAgo(iso: string, t: (k: string) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "à l'instant";
+  if (mins < 1) return t('notifications.justNow');
   if (mins < 60) return `il y a ${mins} min`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `il y a ${hours} h`;
@@ -41,6 +42,7 @@ function timeAgo(iso: string): string {
 }
 
 export default function NotificationBell() {
+  const { t } = useLang();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
@@ -107,21 +109,21 @@ export default function NotificationBell() {
       {open && (
         <div className="absolute right-0 mt-2 w-80 sm:w-96 max-h-[70vh] flex flex-col bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-2xl shadow-xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</span>
+            <span className="text-sm font-semibold text-gray-900 dark:text-white">{t('notifications.title')}</span>
             {unread > 0 && (
               <button
                 onClick={markAllRead}
                 className="flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
-                Tout marquer lu
+                {t('notifications.readAll')}
               </button>
             )}
           </div>
 
           <div className="flex-1 overflow-y-auto scrollbar-custom">
             {items.length === 0 && (
-              <p className="px-4 py-6 text-sm text-gray-400 text-center">Aucune notification</p>
+              <p className="px-4 py-6 text-sm text-gray-400 text-center">{t('notifications.empty')}</p>
             )}
             {items.map(n => {
               const Icon = TYPE_ICON[n.type] || Info;
@@ -137,7 +139,7 @@ export default function NotificationBell() {
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm font-medium text-gray-900 dark:text-gray-200">{n.title}</span>
                     {n.body && <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.body}</span>}
-                    <span className="block text-[11px] text-gray-400 mt-1">{timeAgo(n.created_at)}</span>
+                    <span className="block text-[11px] text-gray-400 mt-1">{timeAgo(n.created_at, t)}</span>
                   </span>
                   {!n.read_at && <span className="w-2 h-2 rounded-full bg-indigo-500 mt-1 shrink-0" />}
                 </button>
