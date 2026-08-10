@@ -12,6 +12,7 @@ import {
   createApplication, updateApplication,
   type JobAgentDto, type JobApplicationDto, type JobStatsDto,
 } from '../lib/jobApi';
+import OnboardingChecklist from './OnboardingChecklist';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   saved: { label: 'Sauvegardé', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
@@ -173,7 +174,9 @@ export default function JobDashboard() {
       </div>
 
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <>
+          <OnboardingChecklist />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="card p-5 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
               <h2 className="section-title">Activité récente</h2>
@@ -207,6 +210,7 @@ export default function JobDashboard() {
             </div>
           </div>
         </div>
+        </>
       )}
 
       {activeTab === 'agents' && (

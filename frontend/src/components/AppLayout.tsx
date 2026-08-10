@@ -2,29 +2,31 @@ import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Briefcase, FileText, LayoutDashboard, Sparkles,
-  Menu, LogOut, Shield, CreditCard, User, Search, Moon, Sun, Linkedin,
+  Menu, LogOut, Shield, CreditCard, User, Search, Moon, Sun, Linkedin, Languages,
 } from 'lucide-react';
 import AppUserBar from './AppUserBar';
 import NotificationBell from './NotificationBell';
 import { useAuth } from '../contexts/AuthContext';
+import { useLang } from '../i18n/LanguageContext';
 import { api } from '../lib/client';
 
 interface NavItem {
   path: string;
   label: string;
+  labelKey: string;
   icon: typeof LayoutDashboard;
   adminOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { path: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-  { path: '/cvpro', label: 'CV Pro', icon: Sparkles },
-  { path: '/cvbuilder', label: 'Créateur de CV', icon: FileText },
-  { path: '/classic', label: 'Mode classique', icon: Briefcase },
-  { path: '/search', label: 'Recherche', icon: Search },
-  { path: '/linkedin', label: 'LinkedIn', icon: Linkedin },
-  { path: '/pricing', label: 'Tarifs', icon: CreditCard },
-  { path: '/admin', label: 'Administration', icon: Shield, adminOnly: true },
+  { path: '/dashboard', label: 'Tableau de bord', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { path: '/cvpro', label: 'CV Pro', labelKey: 'nav.cvpro', icon: Sparkles },
+  { path: '/cvbuilder', label: 'Créateur de CV', labelKey: 'nav.cvbuilder', icon: FileText },
+  { path: '/classic', label: 'Mode classique', labelKey: 'nav.classic', icon: Briefcase },
+  { path: '/search', label: 'Recherche', labelKey: 'nav.search', icon: Search },
+  { path: '/linkedin', label: 'LinkedIn', labelKey: 'nav.linkedin', icon: Linkedin },
+  { path: '/pricing', label: 'Tarifs', labelKey: 'nav.pricing', icon: CreditCard },
+  { path: '/admin', label: 'Administration', labelKey: 'nav.admin', icon: Shield, adminOnly: true },
 ];
 
 const PAGE_LABELS: Record<string, string> = {};
@@ -32,6 +34,7 @@ for (const item of NAV_ITEMS) PAGE_LABELS[item.path] = item.label;
 
 export default function AppLayout() {
   const { token, setToken } = useAuth();
+  const { t, lang, setLang } = useLang();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -74,7 +77,7 @@ export default function AppLayout() {
   const isAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'support';
   const visibleNav = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
   const currentPath = location.pathname;
-  const currentLabel = PAGE_LABELS[currentPath] || 'Tableau de bord';
+  const currentLabel = t(PAGE_LABELS[currentPath] || 'nav.dashboard');
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex">
@@ -119,7 +122,7 @@ export default function AppLayout() {
                 `}
               >
                 <Icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'}`} />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
                 {isActive && (
                   <div className="absolute right-2 w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />
                 )}
@@ -134,7 +137,15 @@ export default function AppLayout() {
             className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 transition-all"
           >
             {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            <span>{darkMode ? 'Mode clair' : 'Mode sombre'}</span>
+            <span>{darkMode ? t('nav.light') : t('nav.dark')}</span>
+          </button>
+          <button
+            onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200 transition-all"
+            aria-label="Changer de langue"
+          >
+            <Languages className="w-5 h-5" />
+            <span className="uppercase">{lang === 'fr' ? 'EN' : 'FR'}</span>
           </button>
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-indigo-100 dark:from-indigo-900/50 to-violet-100 dark:to-violet-900/50 text-indigo-700 dark:text-indigo-300 font-semibold text-sm">
