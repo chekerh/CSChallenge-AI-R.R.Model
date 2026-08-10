@@ -37,6 +37,21 @@ const en: Record<string, string> = {
   'landing.ctaLogin': 'Log in',
   'landing.pricing': 'Pricing',
   'landing.howItWorks': 'How it works',
+  'onboarding.title': 'Set up UtopiaHire',
+  'onboarding.subtitle': 'Follow these steps to get the most out of your job search:',
+  'onboarding.resume': 'Create your first CV',
+  'onboarding.resumeDesc': 'Build a professional CV with the AI builder.',
+  'onboarding.resumeCta': 'Create my CV',
+  'onboarding.diagnosis': 'Run an AI diagnosis',
+  'onboarding.diagnosisDesc': 'Get actionable feedback to improve your CV.',
+  'onboarding.diagnosisCta': 'Diagnose my CV',
+  'onboarding.agent': 'Set up a job agent',
+  'onboarding.agentDesc': 'Automatically search matching job offers.',
+  'onboarding.agentCta': 'Set up now',
+  'onboarding.profile': 'Complete your profile',
+  'onboarding.profileDesc': 'Your plan, subscription and account settings.',
+  'onboarding.profileCta': 'Manage',
+  'onboarding.locked': 'Requires a CV first',
 };
 
 const fr: Record<string, string> = {
@@ -76,6 +91,21 @@ const fr: Record<string, string> = {
   'landing.ctaLogin': 'Se connecter',
   'landing.pricing': 'Tarifs',
   'landing.howItWorks': 'Comment ça marche',
+  'onboarding.title': 'Configurer UtopiaHire',
+  'onboarding.subtitle': 'Suivez ces étapes pour tirer le meilleur de votre recherche d’emploi :',
+  'onboarding.resume': 'Créer mon premier CV',
+  'onboarding.resumeDesc': 'Créez un CV professionnel avec le créateur IA.',
+  'onboarding.resumeCta': 'Créer mon CV',
+  'onboarding.diagnosis': 'Lancer un diagnostic IA',
+  'onboarding.diagnosisDesc': 'Obtenez des recommandations actionnables pour améliorer votre CV.',
+  'onboarding.diagnosisCta': 'Diagnostiquer mon CV',
+  'onboarding.agent': 'Configurer un agent de recherche',
+  'onboarding.agentDesc': 'Trouvez automatiquement les offres qui vous correspondent.',
+  'onboarding.agentCta': 'Configurer',
+  'onboarding.profile': 'Compléter mon profil',
+  'onboarding.profileDesc': 'Votre plan, abonnement et paramètres du compte.',
+  'onboarding.profileCta': 'Gérer',
+  'onboarding.locked': 'Un CV est requis d’abord',
 };
 
 const dictionaries: Record<Language, Record<string, string>> = { fr, en };
