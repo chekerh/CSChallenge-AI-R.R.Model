@@ -5,6 +5,7 @@ import SelfHealAction from '../models/SelfHealAction';
 import AdminSetting from '../models/AdminSetting';
 import { sendAdminAlertEmail } from './emailService';
 import { getResendApiKey } from '../config/env';
+import { notifyAdmins } from './notifications';
 import {
   getBreaker,
   setBreaker,
@@ -322,6 +323,13 @@ export async function runSelfHealCycle(): Promise<void> {
         action: 'escalate',
         status: 'info',
         detail: 'Sévérité passée à « critique » : le signal persiste au-delà de la fenêtre d’observation.',
+      });
+      await notifyAdmins({
+        type: 'incident',
+        title: `Incident critique : ${inc.title}`,
+        body: `Le signal « ${inc.key} » atteint ${sig.value} (seuil ${inc.threshold ?? '—'}) et persiste.`,
+        link: '/admin?tab=monitoring',
+        metadata: { incident_id: String(inc._id) },
       });
     }
 

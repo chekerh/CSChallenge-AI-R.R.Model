@@ -6,6 +6,7 @@ import User from '../models/User';
 import Subscription from '../models/Subscription';
 import { trackEvent } from '../analytics/events';
 import { getStripeSecretKey } from '../config/env';
+import { createNotification } from '../services/notifications';
 import pino from 'pino';
 
 const log = pino({ name: 'billing' });
@@ -171,6 +172,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           
           await User.findByIdAndUpdate(userId, { plan: planCode });
           trackEvent({ userId, event: 'billing.subscription_activated', props: { plan_code: planCode } });
+          await createNotification({
+            userId,
+            type: 'billing',
+            title: `Abonnement ${planCode === 'pro' ? 'Pro' : 'Premium'} activé`,
+            body: 'Votre abonnement est actif. Profitez de toutes les fonctionnalités de UtopiaHire.',
+            link: '/dashboard',
+            metadata: { plan_code: planCode },
+          });
         }
         break;
       }

@@ -13,6 +13,7 @@ import publicRouter from './routes/public';
 import jobsRouter from './routes/jobs';
 import billingRouter from './routes/billing';
 import linkedinRouter from './routes/linkedin';
+import notificationsRouter from './routes/notifications';
 import { startLinkedInScheduler } from './services/linkedinScheduler';
 import { startMonitoringWorker } from './services/monitoring';
 import { connect } from './db';
@@ -117,6 +118,7 @@ app.use('/public', apiLimiter, publicRouter);
 app.use('/jobs', apiLimiter, jobsRouter);
 app.use('/billing', apiLimiter, billingRouter);
 app.use('/linkedin', apiLimiter, linkedinRouter);
+app.use('/notifications', apiLimiter, notificationsRouter);
 
 const startedAt = new Date();
 

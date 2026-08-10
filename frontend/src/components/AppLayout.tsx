@@ -5,6 +5,7 @@ import {
   Menu, LogOut, Shield, CreditCard, User, Search, Moon, Sun, Linkedin,
 } from 'lucide-react';
 import AppUserBar from './AppUserBar';
+import NotificationBell from './NotificationBell';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../lib/client';
 
@@ -177,6 +178,7 @@ export default function AppLayout() {
             </div>
 
             <div className="flex items-center gap-2">
+              <NotificationBell />
               <AppUserBar onOpenAdmin={() => navigate('/admin')} userRole={userRole} userPlan={userPlan} />
             </div>
           </div>
