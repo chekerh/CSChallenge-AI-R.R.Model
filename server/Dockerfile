@@ -5,14 +5,14 @@ RUN apk add --no-cache libc6-compat
 
 # Dependencies
 FROM base AS deps
-COPY package.json package-lock.json* ./
-RUN npm ci --only=production && npm cache clean --force
+COPY package.json ./
+RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 
 # Build
 FROM base AS builder
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json ./
+RUN npm install --no-audit --no-fund
 COPY . .
 RUN npm run build
 
