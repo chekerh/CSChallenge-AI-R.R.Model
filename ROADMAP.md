@@ -16,10 +16,10 @@ AI-powered resume review, CV building, and job-search automation for Tunisian/in
 | Jobs: agents, applications, tracking | #4 | ✅ merged |
 | CV Premium: studio, rewrite, job match | #5 | ✅ merged |
 | LinkedIn: OAuth, posts, scheduler, comments | #6 | ✅ merged |
-| Landing page (framer-motion, FR) + route restructure | #7 | 🔵 in flight |
-| Enterprise monitoring + self-healing (admin) | #7 | 🔵 in flight |
-| Admin incident alerts (email via Resend) | #8 | ⬜ planned |
-| In-app notification system (bell, polling) | #9 | ⬜ planned |
+| Landing page (framer-motion, FR) + route restructure | #7 | ✅ merged |
+| Enterprise monitoring + self-healing (admin) | #7 | ✅ merged |
+| Admin incident alerts (email via Resend) | #8 | 🔵 in flight |
+| In-app notification system (bell, polling) | #9 | 🔵 in flight |
 | E2E smoke tests (Playwright) + SEO/meta polish | #10 | ⬜ planned |
 | AI cache/dedup layer + OpenAI cost guard | #11 | ⬜ planned |
 | i18n EN/FR toggle | #12 | ⬜ planned |
@@ -48,14 +48,17 @@ Landing page and enterprise monitoring/self-heal shipped together (already imple
 ## Upcoming Milestones
 
 ### #8 — Admin incident alerts (email)
-- Send email via Resend when a critical incident is opened (throttled, once per incident)
-- Config via `AdminSetting` (`monitor.alert_email`, `monitor.alert_enabled`)
-- `notifications`/`AlertLog` model or reuse `SelfHealAction` with `triggered_by: system`
+- [x] `sendAdminAlertEmail()` via Resend (`BRAND`, `FRONTEND_URL`)
+- [x] `dispatchAlerts()` dans le cycle de monitoring — envoi unique par incident critique (`alert_sent_at`)
+- [x] Config `AdminSetting` : `monitor.alert_enabled`, `monitor.alert_email`
+- [x] `SelfHealAction` `admin_alert_email` + skip si `RESEND_API_KEY` placeholder
+- [x] Indicateur config alertes dans le MonitoringPanel
 
 ### #9 — In-app notifications
-- `Notification` model + API (list, mark read, unread count)
-- Bell + dropdown in `AppLayout`, polling
-- Emit on: incident opened/resolved, subscription events, job agent activity
+- [x] `Notification` model + API (list paginée, unread-count, read, read-all)
+- [x] `createNotification` / `notifyAdmins` (best-effort)
+- [x] Bell + dropdown dans `AppLayout` (badge, polling 30s, tout marquer lu)
+- [x] Émission : abonnement activé (webhook Stripe), incident → critique (admins)
 
 ### #10 — E2E smoke + SEO
 - Playwright: landing renders, login flow, admin monitoring tab
