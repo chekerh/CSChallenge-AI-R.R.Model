@@ -13,6 +13,9 @@ import SelfHealAction from '../models/SelfHealAction';
 import { requireAuth } from '../middleware/authMiddleware';
 import { requireRole, type AppRole } from '../middleware/requireRole';
 import { getWorkerStatus, runManualHealCycle, getAlertSettings } from '../services/monitoring';
+import { getCostGuardStatus } from '../services/aiCostGuard';
+import AiCache from '../models/AiCache';
+import AiUsage from '../models/AiUsage';
 import pino from 'pino';
 
 const log = pino({ name: 'admin' });
@@ -506,6 +509,81 @@ monitoringRouter.post('/incidents/:id/resolve', async (req, res) => {
 });
 
 router.use('/monitoring', monitoringRouter);
+
+const aiRouter = express.Router();
+
+aiRouter.get('/usage', async (req, res) => {
+  try {
+    const days = Math.min(30, Math.max(1, Number(req.query.days) || 7));
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const sinceKey = since.toISOString().slice(0, 10);
+    const usage = await AiUsage.find({ date: { $gte: sinceKey } }).sort({ date: 1 }).lean();
+    res.json({ days, usage });
+  } catch (err) {
+    log.error({ err }, 'GET /admin/ai/usage failed');
+    res.status(500).json({ error: 'failed to load AI usage' });
+  }
+});
+
+aiRouter.get('/cache/stats', async (_req, res) => {
+  try {
+    const [entries, hits, total] = await Promise.all([
+      AiCache.countDocuments({}),
+      AiCache.aggregate([{ $group: { _id: null, hits: { $sum: '$hit_count' } } }]),
+      AiUsage.aggregate([{ $group: { _id: null, cost: { $sum: '$estimated_cost_usd' } } }]),
+    ]);
+    res.json({
+      entries,
+      hits: (hits[0] as { hits?: number } | undefined)?.hits ?? 0,
+      estimated_total_cost_usd: Number((total[0] as { cost?: number } | undefined)?.cost ?? 0).toFixed(2),
+    });
+  } catch (err) {
+    log.error({ err }, 'GET /admin/ai/cache/stats failed');
+    res.status(500).json({ error: 'failed to load AI cache stats' });
+  }
+});
+
+aiRouter.get('/guard', async (_req, res) => {
+  try {
+    res.json(await getCostGuardStatus());
+  } catch (err) {
+    log.error({ err }, 'GET /admin/ai/guard failed');
+    res.status(500).json({ error: 'failed to load AI cost guard' });
+  }
+});
+
+aiRouter.put('/guard', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const enabled = typeof body.enabled === 'boolean' ? body.enabled : undefined;
+    const budget = body.daily_budget_usd !== undefined ? Number(body.daily_budget_usd) : undefined;
+    if (enabled !== undefined) {
+      await AdminSetting.findOneAndUpdate(
+        { key: 'ai.cost_guard_enabled' },
+        { key: 'ai.cost_guard_enabled', type: 'boolean', value: enabled },
+        { upsert: true },
+      );
+    }
+    if (budget !== undefined) {
+      if (!Number.isFinite(budget) || budget <= 0) {
+        res.status(400).json({ error: 'daily_budget_usd doit être un nombre positif' });
+        return;
+      }
+      await AdminSetting.findOneAndUpdate(
+        { key: 'ai.daily_budget_usd' },
+        { key: 'ai.daily_budget_usd', type: 'number', value: budget },
+        { upsert: true },
+      );
+    }
+    audit(req, 'admin.ai.guard_update', undefined, { enabled, budget });
+    res.json(await getCostGuardStatus());
+  } catch (err) {
+    log.error({ err }, 'PUT /admin/ai/guard failed');
+    res.status(500).json({ error: 'failed to update AI cost guard' });
+  }
+});
+
+router.use('/ai', aiRouter);
 
 export default router;
 
