@@ -14,12 +14,13 @@ import jobsRouter from './routes/jobs';
 import billingRouter from './routes/billing';
 import linkedinRouter from './routes/linkedin';
 import { startLinkedInScheduler } from './services/linkedinScheduler';
+import { startMonitoringWorker } from './services/monitoring';
 import { connect } from './db';
 import { getCorsOrigins, isProduction } from './config/env';
 import { bootstrapSuperAdmin } from './config/bootstrapAdmin';
 import { bootstrapDefaultPlans } from './config/bootstrapPlans';
 import { requestId } from './middleware/requestId';
-import { notFoundHandler, errorHandler } from './middleware/errorHandler';
+import { notFoundHandler, errorHandler, responseMonitor } from './middleware/errorHandler';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 
@@ -42,6 +43,9 @@ app.use(requestId);
 
 // Add structured logging
 app.use(pinoHttp(logger));
+
+// Record 5xx/429 responses (route-level catches that never reach errorHandler)
+app.use(responseMonitor);
 
 const corsOrigins = getCorsOrigins();
 app.use(
@@ -155,6 +159,7 @@ async function startServer(): Promise<void> {
   });
   if (process.env.NODE_ENV === 'test') return;
   startLinkedInScheduler();
+  startMonitoringWorker();
 }
 
 // Graceful shutdown

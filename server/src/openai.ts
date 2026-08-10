@@ -1,7 +1,41 @@
 import './config/env';
+import { isBreakerOpen, recordBreakerSuccess, recordBreakerFailure } from './services/circuitBreaker';
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+export class ServiceUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ServiceUnavailableError';
+  }
+}
+
+async function assertOpenAIAvailable(): Promise<void> {
+  const { open, retryAfterMs } = await isBreakerOpen('openai');
+  if (open) {
+    const secs = Math.max(1, Math.ceil(retryAfterMs / 1000));
+    throw new ServiceUnavailableError(
+      `Le service IA est temporairement indisponible. Réessayez dans ${secs}s.`
+    );
+  }
+}
+
+async function openaiFetch(url: string, init: RequestInit): Promise<Response> {
+  await assertOpenAIAvailable();
+  try {
+    const resp = await fetch(url, init);
+    if (resp.ok) {
+      await recordBreakerSuccess('openai');
+    } else {
+      await recordBreakerFailure('openai');
+    }
+    return resp;
+  } catch (err) {
+    await recordBreakerFailure('openai');
+    throw err;
+  }
+}
 
 function tryParseJSONLike(text: string) {
   if (!text) return null;
@@ -35,7 +69,7 @@ export async function analyzeResume(
     ? `Tailor suggestions for industry: ${opts.industry}.`
     : '';
   const prompt = `Analyze the following resume and provide structured suggestions for improvement: improvements in phrasing, metrics to add, section restructuring, and provide a rewritten improved version. ${industryHint} Return JSON with keys: industry, suggestions (array of {type, text}), improved_text.`;
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+  const resp = await openaiFetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -87,7 +121,7 @@ export async function openaiChatJson(input: {
   temperature?: number;
 }): Promise<{ parsed: unknown; raw: string }> {
   if (!OPENAI_KEY) throw new Error('OPENAI_API_KEY not configured');
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+  const resp = await openaiFetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

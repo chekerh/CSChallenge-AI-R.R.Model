@@ -89,11 +89,13 @@ router.post('/login', express.json(), async (req, res) => {
     const normalized = String(email).trim().toLowerCase();
     const user = await User.findOne({ email: normalized }).select('+password_hash').lean();
     if (!user || !(user as { password_hash?: string }).password_hash) {
+      trackEvent({ event: 'auth.login_failed', props: { reason: 'unknown_user', email: normalized } });
       res.status(401).json({ error: 'invalid credentials' });
       return;
     }
     const ok = await bcrypt.compare(password, (user as { password_hash: string }).password_hash);
     if (!ok) {
+      trackEvent({ event: 'auth.login_failed', props: { reason: 'wrong_password', email: normalized } });
       res.status(401).json({ error: 'invalid credentials' });
       return;
     }

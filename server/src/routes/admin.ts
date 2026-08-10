@@ -7,8 +7,12 @@ import Plan from '../models/Plan';
 import UsageCounter from '../models/UsageCounter';
 import Event from '../models/Event';
 import Resume from '../models/Resume';
+import SystemError from '../models/SystemError';
+import Incident from '../models/Incident';
+import SelfHealAction from '../models/SelfHealAction';
 import { requireAuth } from '../middleware/authMiddleware';
 import { requireRole, type AppRole } from '../middleware/requireRole';
+import { getWorkerStatus, runManualHealCycle } from '../services/monitoring';
 import pino from 'pino';
 
 const log = pino({ name: 'admin' });
@@ -319,6 +323,188 @@ router.get('/analytics', async (req, res) => {
     res.status(500).json({ error: 'failed to load analytics' });
   }
 });
+
+const monitoringRouter = express.Router();
+
+async function monitoringOverview() {
+  const now = new Date();
+  const since24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const since1h = new Date(now.getTime() - 60 * 60 * 1000);
+
+  const [errors24h, errors1h, openIncidents, openCritical, heal24h, events24h, logins24h, signups24h, recentIncidents, recentErrors] =
+    await Promise.all([
+      SystemError.countDocuments({ created_at: { $gte: since24h } }),
+      SystemError.countDocuments({ created_at: { $gte: since1h } }),
+      Incident.countDocuments({ status: 'open' }),
+      Incident.countDocuments({ status: 'open', severity: 'critical' }),
+      SelfHealAction.countDocuments({ created_at: { $gte: since24h } }),
+      Event.countDocuments({ created_at: { $gte: since24h } }),
+      Event.countDocuments({ created_at: { $gte: since24h }, event: 'user.login' }),
+      Event.countDocuments({ created_at: { $gte: since24h }, event: 'user.signup' }),
+      Incident.find({}).sort({ last_seen_at: -1 }).limit(5).lean(),
+      SystemError.find({}).sort({ created_at: -1 }).limit(5).lean(),
+    ]);
+
+  return {
+    now: now.toISOString(),
+    errors_24h: errors24h,
+    errors_1h: errors1h,
+    open_incidents: openIncidents,
+    open_critical: openCritical,
+    heal_actions_24h: heal24h,
+    events_24h: events24h,
+    logins_24h: logins24h,
+    signups_24h: signups24h,
+    recent_incidents: recentIncidents,
+    recent_errors: recentErrors,
+    worker: getWorkerStatus(),
+  };
+}
+
+monitoringRouter.get('/overview', async (req, res) => {
+  try {
+    res.json(await monitoringOverview());
+  } catch (err) {
+    log.error({ err }, 'GET /admin/monitoring/overview failed');
+    res.status(500).json({ error: 'failed to load monitoring overview' });
+  }
+});
+
+monitoringRouter.get('/events', async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const events = await Event.find({})
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .select('event props user_id created_at')
+      .lean();
+    res.json(events);
+  } catch (err) {
+    log.error({ err }, 'GET /admin/monitoring/events failed');
+    res.status(500).json({ error: 'failed to load events' });
+  }
+});
+
+monitoringRouter.get('/errors', async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const errors = await SystemError.find({})
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .lean();
+    res.json(errors);
+  } catch (err) {
+    log.error({ err }, 'GET /admin/monitoring/errors failed');
+    res.status(500).json({ error: 'failed to load errors' });
+  }
+});
+
+monitoringRouter.get('/incidents', async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const incidents = await Incident.find({})
+      .sort({ last_seen_at: -1 })
+      .limit(limit)
+      .lean();
+    res.json(incidents);
+  } catch (err) {
+    log.error({ err }, 'GET /admin/monitoring/incidents failed');
+    res.status(500).json({ error: 'failed to load incidents' });
+  }
+});
+
+monitoringRouter.get('/metrics', async (req, res) => {
+  try {
+    const minutes = Math.min(1440, Math.max(10, Number(req.query.minutes) || 60));
+    const bucketSize = Math.max(1, Math.round(minutes / 60));
+    const since = new Date(Date.now() - minutes * 60 * 1000);
+    const now = new Date();
+    const buckets: { t: string; errors: number; events: number }[] = [];
+
+    const [errorDocs, eventDocs] = await Promise.all([
+      SystemError.find({ created_at: { $gte: since } }).select('created_at').lean(),
+      Event.find({ created_at: { $gte: since } }).select('created_at').lean(),
+    ]);
+
+    const start = since.getTime();
+    const step = bucketSize * 60 * 1000;
+    const count = Math.ceil((now.getTime() - start) / step);
+    const errorsByBucket = new Map<number, number>();
+    const eventsByBucket = new Map<number, number>();
+    for (const d of errorDocs) {
+      const b = Math.floor(((d.created_at as Date).getTime() - start) / step);
+      errorsByBucket.set(b, (errorsByBucket.get(b) || 0) + 1);
+    }
+    for (const d of eventDocs) {
+      const b = Math.floor(((d.created_at as Date).getTime() - start) / step);
+      eventsByBucket.set(b, (eventsByBucket.get(b) || 0) + 1);
+    }
+    for (let i = 0; i < count; i++) {
+      buckets.push({
+        t: new Date(start + i * step).toISOString(),
+        errors: errorsByBucket.get(i) || 0,
+        events: eventsByBucket.get(i) || 0,
+      });
+    }
+    res.json({ minutes, bucket_size_seconds: step / 1000, buckets });
+  } catch (err) {
+    log.error({ err }, 'GET /admin/monitoring/metrics failed');
+    res.status(500).json({ error: 'failed to load metrics' });
+  }
+});
+
+monitoringRouter.get('/self-heal', async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const actions = await SelfHealAction.find({})
+      .sort({ created_at: -1 })
+      .limit(limit)
+      .lean();
+    res.json(actions);
+  } catch (err) {
+    log.error({ err }, 'GET /admin/monitoring/self-heal failed');
+    res.status(500).json({ error: 'failed to load self-heal log' });
+  }
+});
+
+monitoringRouter.post('/self-heal/run', async (req, res) => {
+  try {
+    const result = await runManualHealCycle();
+    audit(req, 'admin.monitoring.self_heal_run', { type: 'Monitoring' }, result);
+    res.json({ ...result, worker: getWorkerStatus() });
+  } catch (err) {
+    log.error({ err }, 'POST /admin/monitoring/self-heal/run failed');
+    res.status(500).json({ error: 'failed to run self-heal cycle' });
+  }
+});
+
+monitoringRouter.post('/incidents/:id/resolve', async (req, res) => {
+  try {
+    const inc = await Incident.findById(req.params.id).lean();
+    if (!inc) {
+      res.status(404).json({ error: 'incident not found' });
+      return;
+    }
+    await Incident.updateOne(
+      { _id: inc._id },
+      { $set: { status: 'manual_resolved', resolved_at: new Date(), resolved_by: 'admin', resolved_by_user: req.user!.id } }
+    );
+    await SelfHealAction.create({
+      incident_id: inc._id,
+      action: 'manual_resolve',
+      status: 'success',
+      detail: `Incident « ${inc.title} » clôturé manuellement par un administrateur.`,
+      triggered_by: 'admin',
+    });
+    audit(req, 'admin.monitoring.incident_resolve', { type: 'Incident', id: String(inc._id) });
+    res.json({ ok: true });
+  } catch (err) {
+    log.error({ err }, 'POST /admin/monitoring/incidents/:id/resolve failed');
+    res.status(500).json({ error: 'failed to resolve incident' });
+  }
+});
+
+router.use('/monitoring', monitoringRouter);
 
 export default router;
 

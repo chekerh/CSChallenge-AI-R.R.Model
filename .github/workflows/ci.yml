@@ -58,5 +58,17 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Build Docker images
+        env:
+          # `docker compose build` parses the full compose file, which requires
+          # these variables even though only image build is performed (no run).
+          MONGO_ROOT_PASSWORD: ci-build-dummy-password
+          JWT_SECRET: ci-build-dummy-secret-at-least-16-chars
+          OPENAI_API_KEY: sk-ci-dummy
+          STRIPE_SECRET_KEY: sk_test_ci_dummy
+          STRIPE_WEBHOOK_SECRET: whsec_ci_dummy
+          STRIPE_PRICE_ID_PRO: price_ci_dummy
+          RESEND_API_KEY: re_ci_dummy
+          FRONTEND_URL: http://localhost:5173
+          CORS_ORIGIN: http://localhost:5173
         run: |
           docker compose build
