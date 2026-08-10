@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { API_BASE } from '../api';
 import { useAuth } from '../contexts/AuthContext';
 import Modal from './ui/Modal';
+import MonitoringPanel from './MonitoringPanel';
 import {
   Users, CreditCard, FileText, Settings, BarChart3, ClipboardList,
-  Loader2, Search, Check
+  Loader2, Search, Check, Radar
 } from 'lucide-react';
 
 type AdminUserDto = { _id: string; email: string; name?: string; role?: string; plan?: string; created_at?: string; };
@@ -23,7 +24,7 @@ function parseByType(type: AdminSettingDto['type'], raw: string): unknown {
   return JSON.parse(raw) as unknown;
 }
 
-type Tab = 'users' | 'plans' | 'content' | 'settings' | 'analytics' | 'audit';
+type Tab = 'users' | 'plans' | 'content' | 'settings' | 'analytics' | 'audit' | 'monitoring';
 const TABS: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'users', label: 'Utilisateurs', icon: Users },
   { id: 'plans', label: 'Plans', icon: CreditCard },
@@ -31,6 +32,7 @@ const TABS: { id: Tab; label: string; icon: typeof Users }[] = [
   { id: 'settings', label: 'Paramètres', icon: Settings },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'audit', label: 'Audit', icon: ClipboardList },
+  { id: 'monitoring', label: 'Monitoring', icon: Radar },
 ];
 
 export default function AdminDashboard({ onClose }: { onClose?: () => void }) {
@@ -82,6 +84,7 @@ export default function AdminDashboard({ onClose }: { onClose?: () => void }) {
 
   async function loadTab(t: Tab): Promise<void> {
     if (!headers) return;
+    if (t === 'monitoring') return; // MonitoringPanel self-manages its data
     setBusy(t); setErr('');
     try {
       const data = await apiGet(`/admin/${t === 'audit' ? 'audit' : t === 'analytics' ? 'analytics' : t}`);
@@ -341,6 +344,10 @@ export default function AdminDashboard({ onClose }: { onClose?: () => void }) {
               {blocks.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">Aucun bloc.</p>}
             </div>
           </div>
+        )}
+
+        {tab === 'monitoring' && (
+          <MonitoringPanel />
         )}
 
         {tab === 'analytics' && (

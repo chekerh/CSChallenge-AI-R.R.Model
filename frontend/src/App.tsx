@@ -17,6 +17,7 @@ const PaymentPage = lazy(() => import('./components/PaymentPage'));
 const JobDashboard = lazy(() => import('./components/JobDashboard'));
 const LinkedInDashboard = lazy(() => import('./components/LinkedInDashboard'));
 const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
+const LandingPage = lazy(() => import('./components/LandingPage'));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -126,6 +127,11 @@ function NotFoundPage() {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/" element={
+        <Suspense fallback={<LoadingSpinner />}>
+          <LandingPage />
+        </Suspense>
+      } />
       <Route path="/login" element={
         <Suspense fallback={<LoadingSpinner />}>
           <LoginPage />
@@ -136,33 +142,32 @@ function AppRoutes() {
           <ResetPasswordPage />
         </Suspense>
       } />
-      <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={
+      <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+        <Route path="/dashboard" element={
           <Suspense fallback={<LoadingSpinner />}><JobDashboard /></Suspense>
         } />
-        <Route path="cvpro" element={
+        <Route path="/cvpro" element={
           <Suspense fallback={<LoadingSpinner />}><CvProPage /></Suspense>
         } />
-        <Route path="cvbuilder" element={
+        <Route path="/cvbuilder" element={
           <Suspense fallback={<LoadingSpinner />}><CvBuilderPage /></Suspense>
         } />
-        <Route path="classic" element={
+        <Route path="/classic" element={
           <Suspense fallback={<LoadingSpinner />}><ClassicPage /></Suspense>
         } />
-        <Route path="pricing" element={
+        <Route path="/pricing" element={
           <Suspense fallback={<LoadingSpinner />}><PricingPanel /></Suspense>
         } />
-        <Route path="admin" element={
+        <Route path="/admin" element={
           <Suspense fallback={<LoadingSpinner />}><AdminPage /></Suspense>
         } />
-        <Route path="payment" element={
+        <Route path="/payment" element={
           <Suspense fallback={<LoadingSpinner />}><PaymentPage /></Suspense>
         } />
-        <Route path="search" element={
+        <Route path="/search" element={
           <Suspense fallback={<LoadingSpinner />}><JobDashboard /></Suspense>
         } />
-        <Route path="linkedin" element={
+        <Route path="/linkedin" element={
           <Suspense fallback={<LoadingSpinner />}><LinkedInDashboard /></Suspense>
         } />
       </Route>
