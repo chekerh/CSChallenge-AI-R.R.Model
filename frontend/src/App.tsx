@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import AuthForm from './components/AuthForm';
 import LoadingSpinner from './components/ui/LoadingSpinner';
@@ -26,9 +26,41 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function OAuthCallbackPage() {
+  const { setToken, isAuthenticated, isLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [handled, setHandled] = useState(false);
+
+  useEffect(() => {
+    if (handled) return;
+    const token = searchParams.get('token');
+    const error = searchParams.get('oauth_error');
+    if (token) {
+      localStorage.setItem('token', token);
+      setToken(token);
+      setHandled(true);
+      navigate('/dashboard', { replace: true });
+    } else if (error) {
+      setHandled(true);
+      navigate(`/login?oauth_error=${encodeURIComponent(error)}`, { replace: true });
+    } else if (isAuthenticated) {
+      navigate('/dashboard', { replace: true });
+    } else if (!isLoading) {
+      setHandled(true);
+      navigate('/login', { replace: true });
+    }
+  }, [searchParams, setToken, navigate, isAuthenticated, isLoading, handled]);
+
+  return <LoadingSpinner />;
+}
+
 function LoginPage({ initialMode = 'login' }: { initialMode?: 'login' | 'signup' }) {
   const { setToken } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const oauthError = searchParams.get('oauth_error');
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-violet-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md animate-scale-in">
@@ -39,6 +71,13 @@ function LoginPage({ initialMode = 'login' }: { initialMode?: 'login' | 'signup'
           <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">UtopiaHire</h1>
           <p className="mt-2 text-gray-500 dark:text-gray-400">IA au service de votre candidature</p>
         </div>
+        {oauthError && (
+          <div className="mb-4 rounded-lg border border-red-100 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 px-4 py-3">
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">
+              Connexion sociale impossible : {decodeURIComponent(oauthError)}
+            </p>
+          </div>
+        )}
         <AuthForm onAuth={(t) => { setToken(t); navigate('/dashboard'); }} initialMode={initialMode} />
       </div>
     </div>
@@ -142,6 +181,7 @@ function AppRoutes() {
           <LoginPage initialMode="signup" />
         </Suspense>
       } />
+      <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
       <Route path="/reset-password" element={
         <Suspense fallback={<LoadingSpinner />}>
           <ResetPasswordPage />

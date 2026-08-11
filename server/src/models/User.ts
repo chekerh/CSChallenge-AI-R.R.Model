@@ -4,8 +4,9 @@ const UserSchema = new Schema({
   email: { type: String, required: true, unique: true },
   name: String,
   password_hash: { type: String, select: false },
-  provider: { type: String, enum: ['local', 'google'] },
+  provider: { type: String, enum: ['local', 'google', 'linkedin'] },
   provider_id: String,
+  avatar: String,
   /** Application role (admin access is role-gated). */
   role: {
     type: String,

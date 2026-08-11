@@ -59,11 +59,11 @@ async function apiFetch(
   return resp;
 }
 
-export function buildLinkedInOAuthUrl(state: string): string {
+export function buildLinkedInOAuthUrl(state: string, redirectUri?: string): string {
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: getLinkedInClientId(),
-    redirect_uri: getLinkedInRedirectUri(),
+    redirect_uri: redirectUri || getLinkedInRedirectUri(),
     scope: LINKEDIN_SCOPES,
     state,
   });
@@ -87,7 +87,10 @@ export function verifyOAuthState(state: string): string {
   return payload.id;
 }
 
-export async function exchangeCodeForToken(code: string): Promise<{
+export async function exchangeCodeForToken(
+  code: string,
+  redirectUri?: string
+): Promise<{
   accessToken: string;
   refreshToken?: string;
   expiresAt: Date;
@@ -96,7 +99,7 @@ export async function exchangeCodeForToken(code: string): Promise<{
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    redirect_uri: getLinkedInRedirectUri(),
+    redirect_uri: redirectUri || getLinkedInRedirectUri(),
     client_id: getLinkedInClientId(),
     client_secret: getLinkedInClientSecret(),
   });
