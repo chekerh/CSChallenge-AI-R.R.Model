@@ -94,3 +94,35 @@ export function getLinkedInCommentSweepMinutes(): number {
   const v = parseInt(process.env.LINKEDIN_COMMENT_SWEEP_MINUTES || '30', 10);
   return Number.isFinite(v) && v > 0 ? v : 30;
 }
+
+export function hasGoogleConfig(): boolean {
+  return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+}
+
+export function getGoogleClientId(): string {
+  const v = process.env.GOOGLE_CLIENT_ID;
+  if (!v) {
+    if (isProduction()) throw new Error('GOOGLE_CLIENT_ID must be set in production');
+    return 'dev_google_client_id';
+  }
+  return v;
+}
+
+export function getGoogleClientSecret(): string {
+  const v = process.env.GOOGLE_CLIENT_SECRET;
+  if (!v) {
+    if (isProduction()) throw new Error('GOOGLE_CLIENT_SECRET must be set in production');
+    return 'dev_google_client_secret';
+  }
+  return v;
+}
+
+/** Server-origin used as the OAuth redirect base for social sign-in callbacks. */
+export function getOAuthCallbackBase(): string {
+  const v = process.env.OAUTH_CALLBACK_BASE;
+  if (v) return v.replace(/\/$/, '');
+  if (isProduction()) {
+    throw new Error('OAUTH_CALLBACK_BASE must be set in production');
+  }
+  return `http://localhost:${process.env.PORT || 4000}`;
+}

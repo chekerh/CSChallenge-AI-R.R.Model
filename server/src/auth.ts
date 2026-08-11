@@ -8,6 +8,16 @@ import { requireAuth } from './middleware/authMiddleware';
 import { getJwtSecret, isProduction } from './config/env';
 import { trackEvent } from './analytics/events';
 import { sendPasswordResetEmail, sendWelcomeEmail } from './services/emailService';
+import {
+  isOAuthProvider,
+  hasOAuthConfig,
+  buildOAuthAuthUrl,
+  signOAuthState,
+  verifyOAuthState,
+  getOAuthIdentity,
+  findOrCreateOAuthUser,
+  OAUTH_PROVIDERS,
+} from './services/oauth';
 import pino from 'pino';
 
 const log = pino({ name: 'auth' });
@@ -109,6 +119,62 @@ router.post('/login', express.json(), async (req, res) => {
   } catch (err) {
     log.error({ err }, 'login failed');
     res.status(500).json({ error: 'login failed' });
+  }
+});
+
+const frontendUrl = () => process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// --- Social sign-in (Google / LinkedIn OAuth) ---
+
+router.get('/oauth/providers', async (_req, res) => {
+  const providers = OAUTH_PROVIDERS.reduce<Record<string, boolean>>((acc, p) => {
+    acc[p] = hasOAuthConfig(p);
+    return acc;
+  }, {});
+  res.json(providers);
+});
+
+router.get('/oauth/:provider/start', async (req, res) => {
+  const provider = String(req.params.provider || '');
+  if (!isOAuthProvider(provider)) {
+    res.status(400).json({ error: 'invalid oauth provider' });
+    return;
+  }
+  if (!hasOAuthConfig(provider)) {
+    res.status(503).json({ error: `${provider} not configured on the server` });
+    return;
+  }
+  res.redirect(buildOAuthAuthUrl(provider, signOAuthState(provider)));
+});
+
+router.get('/oauth/:provider/callback', async (req, res) => {
+  const provider = String(req.params.provider || '');
+  const redirectHome = (msg: string) =>
+    res.redirect(`${frontendUrl()}/login?oauth_error=${encodeURIComponent(msg)}`);
+
+  try {
+    if (!isOAuthProvider(provider)) {
+      redirectHome('provider inconnu');
+      return;
+    }
+    const { code, state, error } = req.query as { code?: string; state?: string; error?: string };
+    if (error) throw new Error(`OAuth error: ${error}`);
+    if (!code || !state) throw new Error('Missing code or state');
+    if (!verifyOAuthState(state, provider)) throw new Error('Invalid OAuth state');
+    if (!hasOAuthConfig(provider)) throw new Error(`${provider} not configured on the server`);
+
+    const identity = await getOAuthIdentity(provider, code);
+    const { user, created } = await findOrCreateOAuthUser(provider, identity);
+    trackEvent({ userId: user._id.toString(), event: created ? `user.oauth_signup.${provider}` : `user.oauth_login.${provider}` });
+    const token = jwt.sign(
+      { id: user._id.toString(), email: user.email },
+      getJwtSecret(),
+      { expiresIn: '7d' }
+    );
+    res.redirect(`${frontendUrl()}/oauth/callback?token=${encodeURIComponent(token)}`);
+  } catch (err) {
+    log.error({ err }, 'OAuth callback failed');
+    redirectHome(err instanceof Error ? err.message : 'OAuth failed');
   }
 });
 
