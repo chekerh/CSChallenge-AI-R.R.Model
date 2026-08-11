@@ -24,7 +24,7 @@ AI-powered resume review, CV building, and job-search automation for Tunisian/in
 | AI cache/dedup layer + OpenAI cost guard | #11 | ✅ merged |
 | i18n EN/FR toggle | #12 | ✅ merged |
 | Onboarding flow + UX polish | #13 | ✅ merged |
-| Social auth (Google/LinkedIn OAuth) | #14 | ⬜ planned |
+| Social auth (Google/LinkedIn OAuth) | #14 | ✅ merged |
 
 ## Active Milestone — #7: Landing + Monitoring
 
@@ -77,7 +77,10 @@ Landing page and enterprise monitoring/self-heal shipped together (already imple
 - [x] Traduit FR/EN (clés ajoutées à `translations.ts`)
 
 ### #14 — Social auth
-- Google OAuth (and LinkedIn) with account linking
+- [x] `GET /auth/oauth/providers` + `/oauth/:provider/start` + `/oauth/:provider/callback` (état signé, purpose `oauth-login`, 15m)
+- [x] Google (openid/email/profile) et LinkedIn (réutilise `linkedinApi`, redirect URI surchargeable)
+- [x] `findOrCreateOAuthUser` : réutilisation par `provider_id`, liaison par email, sinon création (sans mot de passe)
+- [x] Boutons Google/LinkedIn dans `AuthForm` (rendus si configurés) + route `/oauth/callback` → dashboard
 
 ## Rules
 
